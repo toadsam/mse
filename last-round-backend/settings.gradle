@@ -1,0 +1,2 @@
+// file: last-round-backend/settings.gradle
+rootProject.name = 'last-round-backend'
