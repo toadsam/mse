@@ -35,6 +35,8 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public float LookYaw { get; set; }
     [Networked] public float LookPitch { get; set; }
 
+    [Networked] public float MoveX { get; set; }
+    [Networked] public float MoveY { get; set; }
     [Networked] public bool IsGroundedNet { get; set; }
     [Networked] public bool IsDead { get; set; }
     [Networked] public int JumpAnimCount { get; set; }
@@ -42,11 +44,6 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] private NetworkButtons PreviousButtons { get; set; }
 
     private int lastAppliedJumpAnimCount = -1;
-
-    /*private static readonly int MoveAmountHash = Animator.StringToHash("MoveAmount");
-    private static readonly int IsGroundedHash = Animator.StringToHash("IsGrounded");
-    private static readonly int IsDeadHash = Animator.StringToHash("IsDead");
-    private static readonly int JumpHash = Animator.StringToHash("Jump");*/
 
     private void Awake()
     {
@@ -78,6 +75,7 @@ public class PlayerNetwork : NetworkBehaviour
     public override void Spawned()
     {
         playerVisuals?.Refresh(CharacterId);
+        RefreshAnimatorReference();
 
         if (!HasInputAuthority)
             return;
@@ -96,6 +94,7 @@ public class PlayerNetwork : NetworkBehaviour
     public override void Render()
     {
         playerVisuals?.Refresh(CharacterId);
+        RefreshAnimatorReference();
         UpdateAnimator();
     }
 
@@ -117,7 +116,10 @@ public class PlayerNetwork : NetworkBehaviour
         transform.rotation = Quaternion.Euler(0f, LookYaw, 0f);
 
         Vector3 rawMove = new Vector3(input.Move.x, 0f, input.Move.y);
-        MoveAmount = rawMove.magnitude;
+
+        MoveX = input.Move.x;
+        MoveY = input.Move.y;
+        MoveAmount = Mathf.Clamp01(rawMove.magnitude);
 
         if (rawMove.sqrMagnitude > 1f)
             rawMove.Normalize();
@@ -169,15 +171,31 @@ public class PlayerNetwork : NetworkBehaviour
         if (!useAnimator || animator == null)
             return;
 
+        Debug.Log($"Animator = {animator.name}, MoveX={MoveX}, MoveY={MoveY}");
+
+        animator.SetFloat("MoveX", MoveX);
+        animator.SetFloat("MoveY", MoveY);
         animator.SetFloat("MoveAmount", MoveAmount);
-        animator.SetBool("isGrounded", IsGroundedNet);
-        animator.SetBool("isDead", IsDead);
+        animator.SetBool("IsGrounded", IsGroundedNet);
+        animator.SetBool("IsDead", IsDead);
 
         if (JumpAnimCount != lastAppliedJumpAnimCount)
         {
             lastAppliedJumpAnimCount = JumpAnimCount;
             animator.SetTrigger("Jump");
         }
+    }
+
+    private void RefreshAnimatorReference()
+    {
+        if (!useAnimator)
+            return;
+
+        if (playerVisuals != null)
+            animator = playerVisuals.GetActiveAnimator(CharacterId);
+
+        if (animator == null)
+            animator = GetComponentInChildren<Animator>(true);
     }
 
     private void DoDash(Vector3 dir)

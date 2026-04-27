@@ -251,13 +251,15 @@ MonoBehaviour:
   minPitch: -70
   maxPitch: 75
   animator: {fileID: 0}
-  useAnimator: 0
+  useAnimator: 1
   _SlotIndex: 0
   _CharacterId: 0
   _MoveSpeedBonus: 0
   _MoveAmount: 0
   _LookYaw: 0
   _LookPitch: 0
+  _MoveX: 0
+  _MoveY: 0
   _IsGroundedNet: 0
   _IsDead: 0
   _JumpAnimCount: 0
@@ -292,6 +294,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerVisuals
   characterA: {fileID: 1317942712578245303}
   characterB: {fileID: 8826991225521656557}
+  animatorA: {fileID: 1377048742169744795}
+  animatorB: {fileID: 8875441952180355441}
 --- !u!1001 &1319333127270162979
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -632,6 +636,10 @@ PrefabInstance:
       propertyPath: m_Controller
       value: 
       objectReference: {fileID: 9100000, guid: a031a2e7026db57409a33b151c96440e, type: 2}
+    - target: {fileID: 95548616147138488, guid: 8a24513771aad7b4fb0e3d52c969a2c4, type: 3}
+      propertyPath: m_ApplyRootMotion
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -645,6 +653,11 @@ GameObject:
 --- !u!4 &1323965449076405101 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4677264889418062, guid: 8a24513771aad7b4fb0e3d52c969a2c4, type: 3}
+  m_PrefabInstance: {fileID: 1319333127270162979}
+  m_PrefabAsset: {fileID: 0}
+--- !u!95 &1377048742169744795 stripped
+Animator:
+  m_CorrespondingSourceObject: {fileID: 95548616147138488, guid: 8a24513771aad7b4fb0e3d52c969a2c4, type: 3}
   m_PrefabInstance: {fileID: 1319333127270162979}
   m_PrefabAsset: {fileID: 0}
 --- !u!137 &1416306212836379663 stripped
@@ -992,6 +1005,10 @@ PrefabInstance:
       propertyPath: m_Controller
       value: 
       objectReference: {fileID: 9100000, guid: a031a2e7026db57409a33b151c96440e, type: 2}
+    - target: {fileID: 95351788285682418, guid: 30c23f6bcd4f35648bbfc61c9f671e51, type: 3}
+      propertyPath: m_ApplyRootMotion
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -1005,6 +1022,11 @@ Transform:
 --- !u!1 &8826991225521656557 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 1938837853794670, guid: 30c23f6bcd4f35648bbfc61c9f671e51, type: 3}
+  m_PrefabInstance: {fileID: 8825127397561475971}
+  m_PrefabAsset: {fileID: 0}
+--- !u!95 &8875441952180355441 stripped
+Animator:
+  m_CorrespondingSourceObject: {fileID: 95351788285682418, guid: 30c23f6bcd4f35648bbfc61c9f671e51, type: 3}
   m_PrefabInstance: {fileID: 8825127397561475971}
   m_PrefabAsset: {fileID: 0}
 --- !u!137 &8904504333877891821 stripped
