@@ -43,10 +43,10 @@ public class PlayerNetwork : NetworkBehaviour
 
     private int lastAppliedJumpAnimCount = -1;
 
-    private static readonly int MoveAmountHash = Animator.StringToHash("MoveAmount");
+    /*private static readonly int MoveAmountHash = Animator.StringToHash("MoveAmount");
     private static readonly int IsGroundedHash = Animator.StringToHash("IsGrounded");
     private static readonly int IsDeadHash = Animator.StringToHash("IsDead");
-    private static readonly int JumpHash = Animator.StringToHash("Jump");
+    private static readonly int JumpHash = Animator.StringToHash("Jump");*/
 
     private void Awake()
     {
@@ -169,14 +169,14 @@ public class PlayerNetwork : NetworkBehaviour
         if (!useAnimator || animator == null)
             return;
 
-        animator.SetFloat(MoveAmountHash, MoveAmount);
-        animator.SetBool(IsGroundedHash, IsGroundedNet);
-        animator.SetBool(IsDeadHash, IsDead);
+        animator.SetFloat("MoveAmount", MoveAmount);
+        animator.SetBool("isGrounded", IsGroundedNet);
+        animator.SetBool("isDead", IsDead);
 
         if (JumpAnimCount != lastAppliedJumpAnimCount)
         {
             lastAppliedJumpAnimCount = JumpAnimCount;
-            animator.SetTrigger(JumpHash);
+            animator.SetTrigger("Jump");
         }
     }
 

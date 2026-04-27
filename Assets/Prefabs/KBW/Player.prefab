@@ -245,14 +245,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerNetwork
   baseMoveSpeed: 10
   dashDistance: 2.5
+  dashCooldownSeconds: 1
   lookSensitivity: 10
+  lookDeadzone: 0.01
   minPitch: -70
   maxPitch: 75
+  animator: {fileID: 0}
+  useAnimator: 0
   _SlotIndex: 0
   _CharacterId: 0
   _MoveSpeedBonus: 0
+  _MoveAmount: 0
   _LookYaw: 0
   _LookPitch: 0
+  _IsGroundedNet: 0
+  _IsDead: 0
+  _JumpAnimCount: 0
 --- !u!114 &3497155889627014599
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -620,6 +628,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 95548616147138488, guid: 8a24513771aad7b4fb0e3d52c969a2c4, type: 3}
+      propertyPath: m_Controller
+      value: 
+      objectReference: {fileID: 9100000, guid: a031a2e7026db57409a33b151c96440e, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -976,6 +988,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 95351788285682418, guid: 30c23f6bcd4f35648bbfc61c9f671e51, type: 3}
+      propertyPath: m_Controller
+      value: 
+      objectReference: {fileID: 9100000, guid: a031a2e7026db57409a33b151c96440e, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
