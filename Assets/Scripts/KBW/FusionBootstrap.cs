@@ -53,6 +53,11 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             StartGame(GameMode.Client);
     }
 
+    private void Start()
+    {
+        GameManager.Instance?.RegisterBootstrap(this);
+    }
+
     private void Update()
     {
         // 한 번 눌림만 필요한 입력은 Update에서 누적
@@ -68,6 +73,31 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     public void OnInput(NetworkRunner runner, NetworkInput input)
     {
         GameplayInput data = new GameplayInput();
+
+        bool blockGameplay = GameManager.Instance != null && GameManager.Instance.BlocksGameplayInput;
+
+        if (blockGameplay)
+        {
+            data.Move = Vector2.zero;
+            data.Look = Vector2.zero;
+
+            data.Buttons.Set(EInputButton.Fire, false);
+            data.Buttons.Set(EInputButton.AltFire, false);
+            data.Buttons.Set(EInputButton.Dash, false);
+            data.Buttons.Set(EInputButton.Ability, false);
+            data.Buttons.Set(EInputButton.Reload, false);
+
+            input.Set(data);
+
+            dashPressed = false;
+            abilityPressed = false;
+            reloadPressed = false;
+            aug1Pressed = false;
+            aug2Pressed = false;
+            aug3Pressed = false;
+            return;
+        }
+
 
         Vector2 move = Vector2.zero;
         if (Input.GetKey(KeyCode.W)) move.y += 1f;

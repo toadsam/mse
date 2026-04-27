@@ -2187,6 +2187,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FusionBootstrap
   playerPrefab:
     RawGuidValue: 3c64d7d9d5685904db0d1efc05152afc
+  sessionName: LastRound_TestRoom
 --- !u!1001 &42104208
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -26055,15 +26056,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LocalCamera
   target: {fileID: 0}
+  targetNetwork: {fileID: 0}
   mode: 1
-  mouseSensitivity: 3
-  minPitch: -70
-  maxPitch: 75
   thirdPersonDistance: 2
   thirdPersonOffset: {x: 0.7, y: 0.3, z: 0}
   cameraBlockMask:
     serializedVersion: 2
     m_Bits: 1
+  cameraCollisionRadius: 0.2
 --- !u!1001 &549016654
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -72403,6 +72403,66 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 4409304740365994, guid: 367c6fe1a26480944a9793eb305d824f, type: 3}
   m_PrefabInstance: {fileID: 1602635177}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1605474143
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1605474144}
+  - component: {fileID: 1605474145}
+  - component: {fileID: 1605474146}
+  m_Layer: 0
+  m_Name: GameManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1605474144
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1605474143}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -1.20804, y: -2.84489, z: 8.12244}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1605474145
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1605474143}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 79030b2e98015b743ac4cdb326d83682, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CursorController
+--- !u!114 &1605474146
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1605474143}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f8b691742863573438089c18241ded4d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GameManager
+  persistAcrossScenes: 1
+  cursorController: {fileID: 1605474145}
+  localCamera: {fileID: 548291571}
 --- !u!1001 &1606302113
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -97250,6 +97310,7 @@ Transform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
+  - {fileID: 1605474144}
   - {fileID: 548291569}
   - {fileID: 1916696847}
   - {fileID: 40900766}

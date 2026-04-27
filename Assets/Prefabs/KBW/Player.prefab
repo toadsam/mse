@@ -243,10 +243,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 891dfa543165ddf4ba8063aa278494bf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerNetwork
-  baseMoveSpeed: 6
+  baseMoveSpeed: 10
+  dashDistance: 2.5
+  lookSensitivity: 10
+  minPitch: -70
+  maxPitch: 75
   _SlotIndex: 0
   _CharacterId: 0
   _MoveSpeedBonus: 0
+  _LookYaw: 0
+  _LookPitch: 0
 --- !u!114 &3497155889627014599
 MonoBehaviour:
   m_ObjectHideFlags: 0

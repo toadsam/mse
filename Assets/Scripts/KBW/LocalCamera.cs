@@ -27,6 +27,7 @@ public class LocalCamera : MonoBehaviour
     {
         target = view;
         targetNetwork = network;
+        mode = CameraMode.ThirdPerson;
         ApplyVisualMode();
     }
 
@@ -39,10 +40,23 @@ public class LocalCamera : MonoBehaviour
         targetNetwork = null;
     }
 
+    private void Start()
+    {
+        GameManager.Instance?.RegisterLocalCamera(this);
+    }
+
     private void Update()
     {
         if (!IsBound)
             return;
+
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            GameManager.Instance?.TogglePauseCursor();
+            return;
+        }
+
+        if (GameManager.Instance != null && GameManager.Instance.BlocksGameplayInput) return;
 
         if (Input.GetKeyDown(KeyCode.V))
         {
