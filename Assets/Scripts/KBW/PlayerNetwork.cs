@@ -40,6 +40,7 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public bool IsGroundedNet { get; set; }
     [Networked] public bool IsDead { get; set; }
     [Networked] public int JumpAnimCount { get; set; }
+    [Networked] public int MoveState { get; set; }
 
     [Networked] private NetworkButtons PreviousButtons { get; set; }
 
@@ -75,7 +76,8 @@ public class PlayerNetwork : NetworkBehaviour
     public override void Spawned()
     {
         playerVisuals?.Refresh(CharacterId);
-        RefreshAnimatorReference();
+
+        lastAppliedJumpAnimCount = JumpAnimCount;
 
         if (!HasInputAuthority)
             return;
@@ -120,6 +122,8 @@ public class PlayerNetwork : NetworkBehaviour
         MoveX = input.Move.x;
         MoveY = input.Move.y;
         MoveAmount = Mathf.Clamp01(rawMove.magnitude);
+
+        MoveState = CalculateMoveState(input.Move);
 
         if (rawMove.sqrMagnitude > 1f)
             rawMove.Normalize();
@@ -170,12 +174,8 @@ public class PlayerNetwork : NetworkBehaviour
     {
         if (!useAnimator || animator == null)
             return;
-
-        Debug.Log($"Animator = {animator.name}, MoveX={MoveX}, MoveY={MoveY}");
-
-        animator.SetFloat("MoveX", MoveX);
-        animator.SetFloat("MoveY", MoveY);
-        animator.SetFloat("MoveAmount", MoveAmount);
+        //animator.SetFloat("MoveAmount", MoveAmount);
+        animator.SetInteger("MoveState", MoveState);
         animator.SetBool("IsGrounded", IsGroundedNet);
         animator.SetBool("IsDead", IsDead);
 
@@ -201,6 +201,27 @@ public class PlayerNetwork : NetworkBehaviour
     private void DoDash(Vector3 dir)
     {
         cc.Move(dir * dashDistance);
+    }
+
+    private int CalculateMoveState(Vector2 move)
+    {
+        const float deadZone = 0.1f;
+
+        if (Mathf.Abs(move.x) < deadZone && Mathf.Abs(move.y) < deadZone)
+            return 0; // Idle
+
+        if (Mathf.Abs(move.y) >= Mathf.Abs(move.x))
+        {
+            if (move.y > deadZone) return 1;   // Forward
+            if (move.y < -deadZone) return 2;  // Backward
+        }
+        else
+        {
+            if (move.x > deadZone) return 3;   // Right
+            if (move.x < -deadZone) return 4;  // Left
+        }
+
+        return 0;
     }
 
     private void UseAbility()
