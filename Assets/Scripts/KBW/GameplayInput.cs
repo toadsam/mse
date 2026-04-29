@@ -6,11 +6,12 @@ public enum EInputButton
     Fire = 0,
     AltFire = 1,
     Dash = 2,
-    Ability = 3,
-    Reload = 4,
-    ConfirmAugment1 = 5,
-    ConfirmAugment2 = 6,
-    ConfirmAugment3 = 7,
+    Jump = 3,
+    Ability = 4,
+    Reload = 5,
+    ConfirmAugment1 = 6,
+    ConfirmAugment2 = 7,
+    ConfirmAugment3 = 8,
 }
 
 public struct GameplayInput : INetworkInput

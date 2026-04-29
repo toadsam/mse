@@ -244,9 +244,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerNetwork
   baseMoveSpeed: 10
-  dashDistance: 2.5
+  dashDistance: 50
   dashCooldownSeconds: 1
-  lookSensitivity: 10
+  dashSpeed: 100
+  dashDuration: 0.1
+  groundedSnapVelocity: -0.5
+  lookSensitivity: 15
   lookDeadzone: 0.01
   minPitch: -70
   maxPitch: 75
@@ -264,6 +267,14 @@ MonoBehaviour:
   _IsDead: 0
   _JumpAnimCount: 0
   _MoveState: 0
+  _OfferedAugmentId0: 0
+  _OfferedAugmentId1: 0
+  _OfferedAugmentId2: 0
+  _SelectedAugmentId: 0
+  _HasSelectedAugmentNet:
+    _value: 0
+  _DashDistanceBonus: 0
+  _DashCooldownMultiplier: 0
 --- !u!114 &3497155889627014599
 MonoBehaviour:
   m_ObjectHideFlags: 0

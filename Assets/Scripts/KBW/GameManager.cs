@@ -15,7 +15,9 @@ public class GameManager : MonoBehaviour
     private MatchManager matchManager;
     private PlayerNetwork localPlayer;
     private PlayerView localPlayerView;
-
+    public MatchManager Match => matchManager;
+    public PlayerNetwork LocalPlayer => localPlayer;
+    public PlayerView LocalPlayerView => localPlayerView;
     public MatchPhase CurrentPhase =>
         matchManager != null ? matchManager.Phase : MatchPhase.Lobby;
 

@@ -21,6 +21,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     private bool aug1Pressed;
     private bool aug2Pressed;
     private bool aug3Pressed;
+    private bool jumpPressed;
 
     private async void StartGame(GameMode mode)
     {
@@ -61,10 +62,12 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     private void Update()
     {
         // 한 번 눌림만 필요한 입력은 Update에서 누적
-        dashPressed |= Input.GetKeyDown(KeyCode.Space);
+        jumpPressed |= Input.GetKeyDown(KeyCode.Space);
+        dashPressed |= Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift);
         abilityPressed |= Input.GetKeyDown(KeyCode.Q);
         reloadPressed |= Input.GetKeyDown(KeyCode.R);
 
+        // 능력 선택은 일단 마우스 입력으로만 처리, 나중에 키보드 입력도 추가할 수 있음
         aug1Pressed |= Input.GetKeyDown(KeyCode.Alpha1);
         aug2Pressed |= Input.GetKeyDown(KeyCode.Alpha2);
         aug3Pressed |= Input.GetKeyDown(KeyCode.Alpha3);
@@ -84,11 +87,13 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             data.Buttons.Set(EInputButton.Fire, false);
             data.Buttons.Set(EInputButton.AltFire, false);
             data.Buttons.Set(EInputButton.Dash, false);
+            data.Buttons.Set(EInputButton.Jump, false);
             data.Buttons.Set(EInputButton.Ability, false);
             data.Buttons.Set(EInputButton.Reload, false);
 
             input.Set(data);
 
+            jumpPressed = false;
             dashPressed = false;
             abilityPressed = false;
             reloadPressed = false;
@@ -118,6 +123,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
         // 탭형 입력
         data.Buttons.Set(EInputButton.Dash, dashPressed);
+        data.Buttons.Set(EInputButton.Jump, jumpPressed);
         data.Buttons.Set(EInputButton.Ability, abilityPressed);
         data.Buttons.Set(EInputButton.Reload, reloadPressed);
         data.Buttons.Set(EInputButton.ConfirmAugment1, aug1Pressed);
@@ -127,6 +133,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         input.Set(data);
 
         // 이번 프레임 입력 전달 후 리셋
+        jumpPressed = false;
         dashPressed = false;
         abilityPressed = false;
         reloadPressed = false;
@@ -152,6 +159,8 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             player
         );
 
+        runner.SetPlayerObject(player, playerObj);
+
         PlayerNetwork pn = playerObj.GetComponent<PlayerNetwork>();
         if (pn != null)
             pn.ServerInitialize((byte)slot);
@@ -166,6 +175,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             runner.Despawn(obj);
             spawnedPlayers.Remove(player);
         }
+        runner.SetPlayerObject(player, null);
     }
 
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
