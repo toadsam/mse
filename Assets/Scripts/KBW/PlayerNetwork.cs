@@ -1,27 +1,30 @@
 using Fusion;
+using Fusion.Addons.SimpleKCC;
 using UnityEngine;
 
 [RequireComponent(typeof(NetworkObject))]
-[RequireComponent(typeof(CharacterController))]
-[RequireComponent(typeof(NetworkCharacterController))]
+[RequireComponent(typeof(SimpleKCC))]
+[RequireComponent(typeof(Rigidbody))]
 public class PlayerNetwork : NetworkBehaviour
 {
     [Header("Movement")]
     [SerializeField] private float baseMoveSpeed = 6f;
+
+    [Header("Dash")]
     [SerializeField] private float dashDistance = 2.5f;
     [SerializeField] private float dashCooldownSeconds = 1.0f;
     [SerializeField] private float dashSpeed = 28f;
-    [SerializeField] private float dashDuration = 0.10f;
+
+    [Header("Jump / KCC")]
+    [SerializeField] private float kccGravity = -25f;
+    [SerializeField] private float jumpImpulseStrength = 8f;
+    [Networked] public int AirState { get; set; }
+    [Networked] public float VerticalSpeedForAnim { get; set; }
+
     [Networked] private TickTimer DashCooldown { get; set; }
     [Networked] private TickTimer DashActiveTimer { get; set; }
     [Networked] private float DashDirX { get; set; }
     [Networked] private float DashDirZ { get; set; }
-    [Header("Jump")]
-    [SerializeField] private float groundedSnapVelocity = -1f;
-    [SerializeField] private float jumpHeight = 2.0f;
-    [SerializeField] private float gravity = 15f;
-
-    [Networked] private float VerticalVelocity { get; set; }
 
     [Header("Look")]
     [SerializeField] private float lookSensitivity = 3f;
@@ -33,13 +36,14 @@ public class PlayerNetwork : NetworkBehaviour
     [SerializeField] private Animator animator;
     [SerializeField] private bool useAnimator = true;
 
-    private NetworkCharacterController cc;
-    private CharacterController characterController;
+    private SimpleKCC kcc;
+    private Rigidbody rb;
     private PlayerView playerView;
     private PlayerVisuals playerVisuals;
 
     [Networked] public byte SlotIndex { get; set; }
     [Networked] public byte CharacterId { get; set; }
+
     [Networked] public float MoveSpeedBonus { get; set; }
     [Networked] public float MoveAmount { get; set; }
 
@@ -48,6 +52,7 @@ public class PlayerNetwork : NetworkBehaviour
 
     [Networked] public float MoveX { get; set; }
     [Networked] public float MoveY { get; set; }
+
     [Networked] public bool IsGroundedNet { get; set; }
     [Networked] public bool IsDead { get; set; }
     [Networked] public int JumpAnimCount { get; set; }
@@ -61,7 +66,7 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public NetworkBool HasSelectedAugmentNet { get; private set; }
 
     [Networked] public float DashDistanceBonus { get; private set; }
-    [Networked] public float DashCooldownMultiplier { get; private set; } // 기본 1.0
+    [Networked] public float DashCooldownMultiplier { get; private set; }
 
     [Networked] private NetworkButtons PreviousButtons { get; set; }
 
@@ -69,13 +74,16 @@ public class PlayerNetwork : NetworkBehaviour
 
     private void Awake()
     {
-        cc = GetComponent<NetworkCharacterController>();
-        characterController = GetComponent<CharacterController>();
+        kcc = GetComponent<SimpleKCC>();
+        rb = GetComponent<Rigidbody>();
         playerView = GetComponent<PlayerView>();
         playerVisuals = GetComponent<PlayerVisuals>();
 
+        if (rb != null)
+            rb.isKinematic = true;
+
         if (animator == null)
-            animator = GetComponentInChildren<Animator>();
+            animator = GetComponentInChildren<Animator>(true);
     }
 
     public void ServerInitialize(byte slotIndex)
@@ -83,25 +91,48 @@ public class PlayerNetwork : NetworkBehaviour
         if (!HasStateAuthority)
             return;
 
+        AirState = 0;
+        VerticalSpeedForAnim = 0f;
         SlotIndex = slotIndex;
         CharacterId = slotIndex;
+
         MoveSpeedBonus = 0f;
-        VerticalVelocity = groundedSnapVelocity;
 
         LookYaw = transform.eulerAngles.y;
         LookPitch = 0f;
 
+        IsGroundedNet = false;
         IsDead = false;
         JumpAnimCount = 0;
+        MoveState = 0;
 
         DashDistanceBonus = 0f;
         DashCooldownMultiplier = 1f;
+
         SelectedAugmentId = -1;
         HasSelectedAugmentNet = false;
+
+        if (kcc != null)
+            kcc.SetLookRotation(LookPitch, LookYaw);
     }
 
     public override void Spawned()
     {
+        if (kcc == null)
+            kcc = GetComponent<SimpleKCC>();
+
+        if (rb == null)
+            rb = GetComponent<Rigidbody>();
+
+        if (rb != null)
+            rb.isKinematic = true;
+
+        if (kcc != null)
+        {
+            kcc.SetGravity(kccGravity);
+            kcc.SetLookRotation(LookPitch, LookYaw);
+        }
+
         playerVisuals?.Refresh(CharacterId);
 
         lastAppliedJumpAnimCount = JumpAnimCount;
@@ -139,25 +170,30 @@ public class PlayerNetwork : NetworkBehaviour
             MoveY = 0f;
             MoveAmount = 0f;
             MoveState = 0;
-
-            VerticalVelocity = 0f;
-            IsGroundedNet = characterController != null && characterController.isGrounded;
+            AirState = 0;
+            VerticalSpeedForAnim = 0f;
+            IsGroundedNet = kcc != null && kcc.IsGrounded;
 
             PreviousButtons = input.Buttons;
             return;
         }
 
+        if (kcc == null)
+            return;
 
         Vector2 look = input.Look;
 
         if (Mathf.Abs(look.x) < lookDeadzone) look.x = 0f;
         if (Mathf.Abs(look.y) < lookDeadzone) look.y = 0f;
 
-        LookYaw += look.x * lookSensitivity;
-        LookPitch -= look.y * lookSensitivity;
-        LookPitch = Mathf.Clamp(LookPitch, minPitch, maxPitch);
+        float yawDelta = look.x * lookSensitivity;
+        float pitchDelta = -look.y * lookSensitivity;
 
-        transform.rotation = Quaternion.Euler(0f, LookYaw, 0f);
+        kcc.AddLookRotation(pitchDelta, yawDelta, minPitch, maxPitch);
+
+        Vector2 lookRotation = kcc.GetLookRotation(true, true);
+        LookPitch = lookRotation.x;
+        LookYaw = lookRotation.y;
 
         Vector3 rawMove = new Vector3(input.Move.x, 0f, input.Move.y);
 
@@ -169,34 +205,15 @@ public class PlayerNetwork : NetworkBehaviour
         if (rawMove.sqrMagnitude > 1f)
             rawMove.Normalize();
 
-        Vector3 moveDir = Quaternion.Euler(0f, LookYaw, 0f) * rawMove;
+        Vector3 moveDir = kcc.TransformRotation * rawMove;
 
-        bool wasGrounded = characterController != null && characterController.isGrounded;
-
-        if (wasGrounded)
-        {
-            if (VerticalVelocity < groundedSnapVelocity)
-                VerticalVelocity = groundedSnapVelocity;
-
-            if (input.Buttons.WasPressed(PreviousButtons, EInputButton.Jump))
-            {
-                VerticalVelocity = Mathf.Sqrt(2f * gravity * jumpHeight);
-                // TriggerJumpAnimation(); // 일단 잠깐 비활성화
-            }
-        }
-        else
-        {
-            VerticalVelocity -= gravity * Runner.DeltaTime;
-        }
-
-        // 대시 입력 처리
         if (input.Buttons.WasPressed(PreviousButtons, EInputButton.Dash))
         {
             if (DashCooldown.ExpiredOrNotRunning(Runner))
             {
                 Vector3 dashDir = moveDir.sqrMagnitude > 0.0001f
                     ? moveDir.normalized
-                    : transform.forward;
+                    : kcc.TransformRotation * Vector3.forward;
 
                 StartDash(dashDir);
 
@@ -205,30 +222,53 @@ public class PlayerNetwork : NetworkBehaviour
             }
         }
 
-
+        Vector3 moveVelocity;
 
         bool isDashing = !DashActiveTimer.ExpiredOrNotRunning(Runner);
-
-        Vector3 finalMove;
         if (isDashing)
         {
             Vector3 dashDir = new Vector3(DashDirX, 0f, DashDirZ);
-            finalMove = dashDir * dashSpeed;
+            moveVelocity = dashDir * dashSpeed;
         }
         else
         {
             float finalMoveSpeed = baseMoveSpeed + MoveSpeedBonus;
-            finalMove = moveDir * finalMoveSpeed;
+            moveVelocity = moveDir * finalMoveSpeed;
         }
 
-        finalMove.y = VerticalVelocity;
+        float yBeforeMove = transform.position.y;
 
-        cc.Move(finalMove * Runner.DeltaTime);
+        float jumpImpulse = 0f;
+        bool jumpPressedThisTick = input.Buttons.WasPressed(PreviousButtons, EInputButton.Jump);
 
-        IsGroundedNet = characterController != null && characterController.isGrounded;
+        if (jumpPressedThisTick && kcc.IsGrounded)
+        {
+            jumpImpulse = jumpImpulseStrength;
+        }
 
-        if (IsGroundedNet && VerticalVelocity < groundedSnapVelocity)
-            VerticalVelocity = groundedSnapVelocity;
+        kcc.Move(moveVelocity, jumpImpulse);
+
+        float yAfterMove = transform.position.y;
+
+        if (Runner.DeltaTime > 0f)
+            VerticalSpeedForAnim = (yAfterMove - yBeforeMove) / Runner.DeltaTime;
+        else
+            VerticalSpeedForAnim = 0f;
+
+        IsGroundedNet = kcc.IsGrounded;
+
+        if (IsGroundedNet)
+        {
+            AirState = 0;
+        }
+        else if (jumpPressedThisTick || VerticalSpeedForAnim > 0.05f)
+        {
+            AirState = 1; // Jump Up
+        }
+        else
+        {
+            AirState = 2; // Jump Down
+        }
 
         if (input.Buttons.WasPressed(PreviousButtons, EInputButton.Ability))
             UseAbility();
@@ -249,16 +289,13 @@ public class PlayerNetwork : NetworkBehaviour
     {
         if (!useAnimator || animator == null)
             return;
+
         animator.SetFloat("MoveAmount", MoveAmount);
         animator.SetInteger("MoveState", MoveState);
+        animator.SetInteger("AirState", AirState);
+        animator.SetFloat("VerticalSpeed", VerticalSpeedForAnim);
         animator.SetBool("IsGrounded", IsGroundedNet);
         animator.SetBool("IsDead", IsDead);
-
-        /*if (JumpAnimCount != lastAppliedJumpAnimCount)
-        {
-            lastAppliedJumpAnimCount = JumpAnimCount;
-            animator.SetTrigger("Jump");
-        }*/
     }
 
     private void RefreshAnimatorReference()
@@ -294,17 +331,17 @@ public class PlayerNetwork : NetworkBehaviour
         const float deadZone = 0.1f;
 
         if (Mathf.Abs(move.x) < deadZone && Mathf.Abs(move.y) < deadZone)
-            return 0; // Idle
+            return 0;
 
         if (Mathf.Abs(move.y) >= Mathf.Abs(move.x))
         {
-            if (move.y > deadZone) return 1;   // Forward
-            if (move.y < -deadZone) return 2;  // Backward
+            if (move.y > deadZone) return 1;
+            if (move.y < -deadZone) return 2;
         }
         else
         {
-            if (move.x > deadZone) return 3;   // Right
-            if (move.x < -deadZone) return 4;  // Left
+            if (move.x > deadZone) return 3;
+            if (move.x < -deadZone) return 4;
         }
 
         return 0;
@@ -330,13 +367,11 @@ public class PlayerNetwork : NetworkBehaviour
         // 나중에 우클릭 조준/보조사격 연결
     }
 
-    // 점프 입력을 나중에 추가하면 이 메서드를 호출
     private void TriggerJumpAnimation()
     {
         JumpAnimCount++;
     }
 
-    // 나중에 체력 시스템에서 사망 시 호출
     public void SetDead(bool dead)
     {
         IsDead = dead;
@@ -384,7 +419,6 @@ public class PlayerNetwork : NetworkBehaviour
                     DashCooldownMultiplier = 1f;
 
                 DashCooldownMultiplier *= def.value;
-                // 예: 0.8f 면 20% 감소
                 break;
         }
     }

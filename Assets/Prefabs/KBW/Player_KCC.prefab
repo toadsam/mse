@@ -138,9 +138,9 @@ GameObject:
   m_Component:
   - component: {fileID: 2077818365406156717}
   - component: {fileID: 5867344273043341112}
-  - component: {fileID: 1363434528930461173}
-  - component: {fileID: 4992440129376653366}
-  - component: {fileID: 8386682463894565216}
+  - component: {fileID: -3742711794377281001}
+  - component: {fileID: 641033716158957635}
+  - component: {fileID: 6673893204445664697}
   - component: {fileID: 3497155889627014599}
   - component: {fileID: 5923588606896033443}
   m_Layer: 6
@@ -184,54 +184,10 @@ MonoBehaviour:
   Flags: 262145
   NestedObjects: []
   NetworkedBehaviours:
-  - {fileID: 4992440129376653366}
-  - {fileID: 8386682463894565216}
+  - {fileID: -3742711794377281001}
+  - {fileID: 6673893204445664697}
   ForceRemoteRenderTimeframe: 0
---- !u!143 &1363434528930461173
-CharacterController:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7731108197638085758}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Height: 2
-  m_Radius: 0.5
-  m_SlopeLimit: 45
-  m_StepOffset: 0.3
-  m_SkinWidth: 0.08
-  m_MinMoveDistance: 0.001
-  m_Center: {x: 0, y: 1, z: 0}
---- !u!114 &4992440129376653366
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7731108197638085758}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 378411a89480da345945c2f888327a2d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Fusion.Unity::Fusion.NetworkCharacterController
-  _stateAuthorityChangeErrorCorrectionDelta: 0
-  gravity: -20
-  jumpImpulse: 10
-  acceleration: 10
-  braking: 10
-  maxSpeed: 2
-  rotationSpeed: 15
---- !u!114 &8386682463894565216
+--- !u!114 &-3742711794377281001
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -243,14 +199,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 891dfa543165ddf4ba8063aa278494bf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerNetwork
-  baseMoveSpeed: 10
-  dashDistance: 50
+  baseMoveSpeed: 8
+  dashDistance: 100
   dashCooldownSeconds: 1
   dashSpeed: 100
-  dashDuration: 0.1
-  groundedSnapVelocity: -0.5
-  jumpHeight: 2
-  gravity: 15
+  kccGravity: -25
+  jumpImpulseStrength: 12
   lookSensitivity: 15
   lookDeadzone: 0.01
   minPitch: -70
@@ -277,6 +231,70 @@ MonoBehaviour:
     _value: 0
   _DashDistanceBonus: 0
   _DashCooldownMultiplier: 0
+--- !u!54 &641033716158957635
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7731108197638085758}
+  serializedVersion: 5
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 0
+  m_IsKinematic: 1
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
+--- !u!114 &6673893204445664697
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7731108197638085758}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1869825851, guid: 977dbcf975465374990f471e1497f563, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Fusion.Addons.SimpleKCC.dll::Fusion.Addons.SimpleKCC.SimpleKCC
+  _stateAuthorityChangeErrorCorrectionDelta: 0
+  _settings:
+    Shape: 1
+    IsTrigger: 0
+    Radius: 0.35
+    Height: 1.8
+    Extent: 0.035
+    ColliderLayer: 0
+    CollisionLayerMask:
+      serializedVersion: 2
+      m_Bits: 1
+    ProxyInterpolationMode: 0
+    MaxPenetrationSteps: 8
+    CCDRadiusMultiplier: 0.75
+    AntiJitterDistance: {x: 0.025, y: 0.01}
+    CompressNetworkPosition: 0
+    ForcePredictedLookRotation: 0
+    StepHeight: 0.3
+    StepDepth: 0.2
+    StepSpeed: 1
+    StepMinPushBack: 0.5
+    StepGroundCheckRadiusScale: 0.5
+    StepRequireGroundTarget: 0
+    SnapDistance: 0.25
+    SnapSpeed: 4
 --- !u!114 &3497155889627014599
 MonoBehaviour:
   m_ObjectHideFlags: 0
