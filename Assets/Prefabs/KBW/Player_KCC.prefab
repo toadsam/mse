@@ -144,7 +144,7 @@ GameObject:
   - component: {fileID: 3497155889627014599}
   - component: {fileID: 5923588606896033443}
   m_Layer: 6
-  m_Name: Player
+  m_Name: Player_KCC
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -179,7 +179,7 @@ MonoBehaviour:
   m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
-  SortKey: 2069489725
+  SortKey: 3095284154
   ObjectInterest: 1
   Flags: 262145
   NestedObjects: []
@@ -248,9 +248,9 @@ MonoBehaviour:
   dashCooldownSeconds: 1
   dashSpeed: 100
   dashDuration: 0.1
+  groundedSnapVelocity: -0.5
   jumpHeight: 2
   gravity: 15
-  groundedSnapVelocity: -0.5
   lookSensitivity: 15
   lookDeadzone: 0.01
   minPitch: -70

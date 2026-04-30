@@ -16,10 +16,10 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] private TickTimer DashActiveTimer { get; set; }
     [Networked] private float DashDirX { get; set; }
     [Networked] private float DashDirZ { get; set; }
-    /*[Header("Jump")]
-    [SerializeField] private float jumpHeight = 2f;
-    [SerializeField] private float gravity = 15f;*/
-    [SerializeField] private float groundedSnapVelocity = -0.5f;
+    [Header("Jump")]
+    [SerializeField] private float groundedSnapVelocity = -1f;
+    [SerializeField] private float jumpHeight = 2.0f;
+    [SerializeField] private float gravity = 15f;
 
     [Networked] private float VerticalVelocity { get; set; }
 
@@ -86,7 +86,7 @@ public class PlayerNetwork : NetworkBehaviour
         SlotIndex = slotIndex;
         CharacterId = slotIndex;
         MoveSpeedBonus = 0f;
-        //VerticalVelocity = groundedSnapVelocity;
+        VerticalVelocity = groundedSnapVelocity;
 
         LookYaw = transform.eulerAngles.y;
         LookPitch = 0f;
@@ -132,7 +132,7 @@ public class PlayerNetwork : NetworkBehaviour
         if (!GetInput(out GameplayInput input))
             return;
 
-        /*MatchManager match = MatchManager.Instance;
+        MatchManager match = MatchManager.Instance;
         if (match != null && match.CurrentPhase == MatchPhase.ChoosingAugment)
         {
             MoveX = 0f;
@@ -140,12 +140,13 @@ public class PlayerNetwork : NetworkBehaviour
             MoveAmount = 0f;
             MoveState = 0;
 
-            //VerticalVelocity = groundedSnapVelocity;
+            VerticalVelocity = 0f;
             IsGroundedNet = characterController != null && characterController.isGrounded;
 
             PreviousButtons = input.Buttons;
             return;
-        }*/
+        }
+
 
         Vector2 look = input.Look;
 
@@ -172,21 +173,21 @@ public class PlayerNetwork : NetworkBehaviour
 
         bool wasGrounded = characterController != null && characterController.isGrounded;
 
-        /*if (wasGrounded)
+        if (wasGrounded)
         {
-            if (VerticalVelocity < 0f)
+            if (VerticalVelocity < groundedSnapVelocity)
                 VerticalVelocity = groundedSnapVelocity;
 
             if (input.Buttons.WasPressed(PreviousButtons, EInputButton.Jump))
             {
                 VerticalVelocity = Mathf.Sqrt(2f * gravity * jumpHeight);
-                TriggerJumpAnimation();
+                // TriggerJumpAnimation(); // 일단 잠깐 비활성화
             }
         }
         else
         {
             VerticalVelocity -= gravity * Runner.DeltaTime;
-        }*/
+        }
 
         // 대시 입력 처리
         if (input.Buttons.WasPressed(PreviousButtons, EInputButton.Dash))
@@ -203,6 +204,8 @@ public class PlayerNetwork : NetworkBehaviour
                 DashCooldown = TickTimer.CreateFromSeconds(Runner, cooldown);
             }
         }
+
+
 
         bool isDashing = !DashActiveTimer.ExpiredOrNotRunning(Runner);
 
@@ -224,7 +227,7 @@ public class PlayerNetwork : NetworkBehaviour
 
         IsGroundedNet = characterController != null && characterController.isGrounded;
 
-        if (IsGroundedNet && VerticalVelocity < 0f)
+        if (IsGroundedNet && VerticalVelocity < groundedSnapVelocity)
             VerticalVelocity = groundedSnapVelocity;
 
         if (input.Buttons.WasPressed(PreviousButtons, EInputButton.Ability))
@@ -246,16 +249,16 @@ public class PlayerNetwork : NetworkBehaviour
     {
         if (!useAnimator || animator == null)
             return;
-        //animator.SetFloat("MoveAmount", MoveAmount);
+        animator.SetFloat("MoveAmount", MoveAmount);
         animator.SetInteger("MoveState", MoveState);
         animator.SetBool("IsGrounded", IsGroundedNet);
         animator.SetBool("IsDead", IsDead);
 
-        if (JumpAnimCount != lastAppliedJumpAnimCount)
+        /*if (JumpAnimCount != lastAppliedJumpAnimCount)
         {
             lastAppliedJumpAnimCount = JumpAnimCount;
             animator.SetTrigger("Jump");
-        }
+        }*/
     }
 
     private void RefreshAnimatorReference()
