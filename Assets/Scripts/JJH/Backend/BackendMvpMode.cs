@@ -66,6 +66,66 @@ public class BackendMvpMode : MonoBehaviour
             ToggleVisible();
     }
 
+    private void OnEnable()
+    {
+        if (AuthManager.Instance != null)
+        {
+            AuthManager.Instance.SignupSucceeded += HandleAuthSucceeded;
+            AuthManager.Instance.LoginSucceeded += HandleAuthSucceeded;
+            AuthManager.Instance.RefreshSucceeded += HandleRefreshSucceeded;
+            AuthManager.Instance.UserLoaded += HandleUserLoaded;
+            AuthManager.Instance.UserUpdated += HandleUserUpdated;
+            AuthManager.Instance.LoggedOut += HandleLoggedOut;
+            AuthManager.Instance.AuthFailed += AppendError;
+        }
+
+        if (BackendDataService.Instance != null)
+        {
+            BackendDataService.Instance.LeaderboardLoaded += HandleLeaderboardLoaded;
+            BackendDataService.Instance.AugmentsLoaded += HandleAugmentsLoaded;
+            BackendDataService.Instance.LeaderboardFailed += AppendError;
+            BackendDataService.Instance.AugmentsFailed += AppendError;
+        }
+
+        if (MatchResultService.Instance != null)
+        {
+            MatchResultService.Instance.SaveSucceeded += HandleMatchSaved;
+            MatchResultService.Instance.HistoryLoaded += HandleHistoryLoaded;
+            MatchResultService.Instance.SaveFailed += AppendError;
+            MatchResultService.Instance.HistoryFailed += AppendError;
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (AuthManager.Instance != null)
+        {
+            AuthManager.Instance.SignupSucceeded -= HandleAuthSucceeded;
+            AuthManager.Instance.LoginSucceeded -= HandleAuthSucceeded;
+            AuthManager.Instance.RefreshSucceeded -= HandleRefreshSucceeded;
+            AuthManager.Instance.UserLoaded -= HandleUserLoaded;
+            AuthManager.Instance.UserUpdated -= HandleUserUpdated;
+            AuthManager.Instance.LoggedOut -= HandleLoggedOut;
+            AuthManager.Instance.AuthFailed -= AppendError;
+        }
+
+        if (BackendDataService.Instance != null)
+        {
+            BackendDataService.Instance.LeaderboardLoaded -= HandleLeaderboardLoaded;
+            BackendDataService.Instance.AugmentsLoaded -= HandleAugmentsLoaded;
+            BackendDataService.Instance.LeaderboardFailed -= AppendError;
+            BackendDataService.Instance.AugmentsFailed -= AppendError;
+        }
+
+        if (MatchResultService.Instance != null)
+        {
+            MatchResultService.Instance.SaveSucceeded -= HandleMatchSaved;
+            MatchResultService.Instance.HistoryLoaded -= HandleHistoryLoaded;
+            MatchResultService.Instance.SaveFailed -= AppendError;
+            MatchResultService.Instance.HistoryFailed -= AppendError;
+        }
+    }
+
     private void OnGUI()
     {
         if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.F8)
@@ -136,8 +196,7 @@ public class BackendMvpMode : MonoBehaviour
             GetMe();
         if (GUILayout.Button("로컬 로그아웃", GUILayout.Height(30f)))
         {
-            BackendSession.Clear();
-            AppendLog("로컬 로그아웃", "Unity에 저장된 토큰을 지웠어. 서버 계정은 삭제되지 않아.");
+            AuthManager.Instance.Logout();
         }
         GUILayout.EndHorizontal();
 
@@ -286,95 +345,42 @@ public class BackendMvpMode : MonoBehaviour
 
     private void Signup()
     {
-        BackendApiClient.Instance.Signup(new SignupRequest
-        {
-            email = email.Trim(),
-            password = password,
-            nickname = nickname.Trim()
-        }, auth =>
-        {
-            SyncUserFields(auth);
-            AppendLog("회원가입 성공", FormatAuth(auth));
-        }, AppendError);
+        AuthManager.Instance.Signup(email, password, nickname);
     }
 
     private void Login()
     {
-        BackendApiClient.Instance.Login(new LoginRequest
-        {
-            email = email.Trim(),
-            password = password
-        }, auth =>
-        {
-            SyncUserFields(auth);
-            AppendLog("로그인 성공", FormatAuth(auth));
-        }, AppendError);
+        AuthManager.Instance.Login(email, password);
     }
 
     private void Refresh()
     {
-        BackendApiClient.Instance.Refresh(auth =>
-        {
-            SyncUserFields(auth);
-            AppendLog("토큰 갱신 성공", FormatAuth(auth));
-        }, AppendError);
+        AuthManager.Instance.Refresh();
     }
 
     private void PingServer()
     {
-        BackendApiClient.Instance.GetAugments(augments =>
-        {
-            int count = augments != null ? augments.Count : 0;
-            AppendLog("서버 연결 성공", $"서버에서 증강 데이터 {count}개를 받아왔어.");
-        }, AppendError);
+        BackendDataService.Instance.LoadAugments();
     }
 
     private void GetMe()
     {
-        BackendApiClient.Instance.GetMe(user =>
-        {
-            player1Id = user.id.ToString();
-            winnerId = player1Id;
-            newNickname = user.nickname;
-            AppendLog("내 정보 조회 성공", $"유저 번호: {user.id}\n이메일: {user.email}\n닉네임: {user.nickname}");
-        }, AppendError);
+        AuthManager.Instance.LoadMe();
     }
 
     private void UpdateNickname()
     {
-        BackendApiClient.Instance.UpdateUser(new UserUpdateRequest { nickname = newNickname.Trim() }, user =>
-        {
-            nickname = user.nickname;
-            AppendLog("닉네임 변경 성공", $"유저 번호: {user.id}\n새 닉네임: {user.nickname}");
-        }, AppendError);
+        AuthManager.Instance.UpdateNickname(newNickname);
     }
 
     private void GetLeaderboard()
     {
-        BackendApiClient.Instance.GetLeaderboard(entries =>
-        {
-            StringBuilder builder = new StringBuilder();
-            if (entries != null)
-            {
-                foreach (LeaderboardEntry entry in entries)
-                    builder.AppendLine($"{entry.userId}번 {entry.nickname} | 승리 {entry.totalWins} / 경기 {entry.totalMatches} | 승률 {entry.winRate}%");
-            }
-            AppendLog("리더보드 조회 성공", builder.Length == 0 ? "아직 데이터가 없어." : builder.ToString());
-        }, AppendError);
+        BackendDataService.Instance.LoadLeaderboard();
     }
 
     private void GetAugments()
     {
-        BackendApiClient.Instance.GetAugments(augments =>
-        {
-            StringBuilder builder = new StringBuilder();
-            if (augments != null)
-            {
-                foreach (AugmentResponse augment in augments)
-                    builder.AppendLine($"{augment.id}번 {augment.name} | 타입: {augment.effectType}\n설명: {augment.description}");
-            }
-            AppendLog("증강 목록 조회 성공", builder.Length == 0 ? "아직 데이터가 없어." : builder.ToString());
-        }, AppendError);
+        BackendDataService.Instance.LoadAugments();
     }
 
     private void PostMatchResult()
@@ -382,23 +388,12 @@ public class BackendMvpMode : MonoBehaviour
         if (!TryReadMatch(out MatchResultRequest request))
             return;
 
-        BackendApiClient.Instance.SaveMatchResult(request,
-            match => AppendLog("매치 결과 저장 성공", $"매치 번호: {match.id}\n승자 ID: {match.winnerId}\n점수: {match.player1Score} : {match.player2Score}"),
-            AppendError);
+        MatchResultService.Instance.SaveResult(request);
     }
 
     private void GetHistory()
     {
-        BackendApiClient.Instance.GetMatchHistory(0, 20, history =>
-        {
-            StringBuilder builder = new StringBuilder();
-            if (history?.content != null)
-            {
-                foreach (MatchResponse match in history.content)
-                    builder.AppendLine($"#{match.id} | 1P:{match.player1Id} 2P:{match.player2Id} 승자:{match.winnerId} 점수 {match.player1Score}:{match.player2Score}");
-            }
-            AppendLog("내 매치 기록 조회 성공", builder.Length == 0 ? "아직 매치 기록이 없어." : builder.ToString());
-        }, AppendError);
+        MatchResultService.Instance.LoadMyHistory();
     }
 
     private bool TryReadMatch(out MatchResultRequest request)
@@ -485,6 +480,75 @@ public class BackendMvpMode : MonoBehaviour
     private string FormatAuth(AuthResponse auth)
     {
         return auth == null ? "응답 없음" : $"유저 번호: {auth.userId}\n이메일: {auth.email}\n닉네임: {auth.nickname}";
+    }
+
+    private void HandleAuthSucceeded(AuthResponse auth)
+    {
+        SyncUserFields(auth);
+        AppendLog("인증 성공", FormatAuth(auth));
+    }
+
+    private void HandleRefreshSucceeded(AuthResponse auth)
+    {
+        SyncUserFields(auth);
+        AppendLog("토큰 갱신 성공", FormatAuth(auth));
+    }
+
+    private void HandleUserLoaded(UserMeResponse user)
+    {
+        player1Id = user.id.ToString();
+        winnerId = player1Id;
+        newNickname = user.nickname;
+        AppendLog("내 정보 조회 성공", $"유저 번호: {user.id}\n이메일: {user.email}\n닉네임: {user.nickname}");
+    }
+
+    private void HandleUserUpdated(UserMeResponse user)
+    {
+        nickname = user.nickname;
+        AppendLog("닉네임 변경 성공", $"유저 번호: {user.id}\n새 닉네임: {user.nickname}");
+    }
+
+    private void HandleLoggedOut()
+    {
+        AppendLog("로컬 로그아웃", "Unity에 저장된 토큰을 지웠어. 서버 계정은 삭제되지 않아.");
+    }
+
+    private void HandleLeaderboardLoaded(System.Collections.Generic.List<LeaderboardEntry> entries)
+    {
+        StringBuilder builder = new StringBuilder();
+        if (entries != null)
+        {
+            foreach (LeaderboardEntry entry in entries)
+                builder.AppendLine($"{entry.userId}번 {entry.nickname} | 승리 {entry.totalWins} / 경기 {entry.totalMatches} | 승률 {entry.winRate}%");
+        }
+        AppendLog("리더보드 조회 성공", builder.Length == 0 ? "아직 데이터가 없어." : builder.ToString());
+    }
+
+    private void HandleAugmentsLoaded(System.Collections.Generic.List<AugmentResponse> augments)
+    {
+        StringBuilder builder = new StringBuilder();
+        if (augments != null)
+        {
+            foreach (AugmentResponse augment in augments)
+                builder.AppendLine($"{augment.id}번 {augment.name} | 타입: {augment.effectType}\n설명: {augment.description}");
+        }
+        AppendLog("증강 목록 조회 성공", builder.Length == 0 ? "아직 데이터가 없어." : builder.ToString());
+    }
+
+    private void HandleMatchSaved(MatchResponse match)
+    {
+        AppendLog("매치 결과 저장 성공", $"매치 번호: {match.id}\n승자 ID: {match.winnerId}\n점수: {match.player1Score} : {match.player2Score}");
+    }
+
+    private void HandleHistoryLoaded(MatchHistoryResponse history)
+    {
+        StringBuilder builder = new StringBuilder();
+        if (history?.content != null)
+        {
+            foreach (MatchResponse match in history.content)
+                builder.AppendLine($"#{match.id} | 1P:{match.player1Id} 2P:{match.player2Id} 승자:{match.winnerId} 점수 {match.player1Score}:{match.player2Score}");
+        }
+        AppendLog("내 매치 기록 조회 성공", builder.Length == 0 ? "아직 매치 기록이 없어." : builder.ToString());
     }
 
     private void AppendError(string message)
