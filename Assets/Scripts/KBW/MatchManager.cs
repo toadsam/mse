@@ -85,9 +85,14 @@ public class MatchManager : NetworkBehaviour
                 if (PhaseTimer.ExpiredOrNotRunning(Runner))
                 {
                     if (MatchWinnerSlot >= 0)
+                    {
                         EnterMatchResultPhase();
+                    }
                     else
+                    {
+                        RoundIndex++;
                         EnterAugmentPhase();
+                    }
                 }
                 break;
         }

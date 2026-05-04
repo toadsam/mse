@@ -97,7 +97,10 @@ public class PlayerNetwork : NetworkBehaviour
         playerHealth = GetComponent<PlayerHealth>();
 
         if (rb != null)
+        {
             rb.isKinematic = true;
+            rb.useGravity = false;
+        }
 
         if (animator == null)
             animator = GetComponentInChildren<Animator>(true);
