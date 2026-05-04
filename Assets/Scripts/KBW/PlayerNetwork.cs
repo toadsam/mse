@@ -15,20 +15,6 @@ public class PlayerNetwork : NetworkBehaviour
     [SerializeField] private float dashCooldownSeconds = 1.0f;
     [SerializeField] private float dashSpeed = 28f;
 
-    [Header("Rifle")]
-    [SerializeField] private int rifleDamage = 20;
-    [SerializeField] private float rifleRange = 80f;
-    [SerializeField] private float rifleFireInterval = 0.18f;
-    [SerializeField] private LayerMask rifleHitMask = ~0;
-    [SerializeField] private Transform fireOrigin;
-    [SerializeField] private bool drawFireDebugRay = true;
-    [Networked] public NetworkBool IsFiringNet { get; set; }
-
-    [Networked] private TickTimer FireCooldown { get; set; }
-    [Networked] public int FireAnimCount { get; set; }
-
-    private int lastAppliedFireAnimCount = -1;
-
     [Header("Jump / KCC")]
     [SerializeField] private float kccGravity = -25f;
     [SerializeField] private float jumpImpulseStrength = 8f;
@@ -54,8 +40,6 @@ public class PlayerNetwork : NetworkBehaviour
     private Rigidbody rb;
     private PlayerView playerView;
     private PlayerVisuals playerVisuals;
-    private PlayerHealth playerHealth;
-    public PlayerHealth Health => playerHealth;
 
     [Networked] public byte SlotIndex { get; set; }
     [Networked] public byte CharacterId { get; set; }
@@ -94,21 +78,12 @@ public class PlayerNetwork : NetworkBehaviour
         rb = GetComponent<Rigidbody>();
         playerView = GetComponent<PlayerView>();
         playerVisuals = GetComponent<PlayerVisuals>();
-        playerHealth = GetComponent<PlayerHealth>();
 
         if (rb != null)
             rb.isKinematic = true;
 
         if (animator == null)
             animator = GetComponentInChildren<Animator>(true);
-
-        if (fireOrigin == null && playerView != null)
-        {
-            if (playerView.FirstPersonAnchor != null)
-                fireOrigin = playerView.FirstPersonAnchor;
-            else
-                fireOrigin = transform;
-        }
     }
 
     public void ServerInitialize(byte slotIndex)
@@ -131,9 +106,6 @@ public class PlayerNetwork : NetworkBehaviour
         JumpAnimCount = 0;
         MoveState = 0;
 
-        FireCooldown = default;
-        FireAnimCount = 0;
-
         DashDistanceBonus = 0f;
         DashCooldownMultiplier = 1f;
 
@@ -151,8 +123,6 @@ public class PlayerNetwork : NetworkBehaviour
 
         if (rb == null)
             rb = GetComponent<Rigidbody>();
-        if (playerHealth == null)
-            playerHealth = GetComponent<PlayerHealth>();
 
         if (rb != null)
             rb.isKinematic = true;
@@ -166,7 +136,6 @@ public class PlayerNetwork : NetworkBehaviour
         playerVisuals?.Refresh(CharacterId);
 
         lastAppliedJumpAnimCount = JumpAnimCount;
-        lastAppliedFireAnimCount = FireAnimCount;
 
         if (!HasInputAuthority)
             return;
@@ -275,7 +244,6 @@ public class PlayerNetwork : NetworkBehaviour
         if (jumpPressedThisTick && kcc.IsGrounded)
         {
             jumpImpulse = jumpImpulseStrength;
-            TriggerJumpAnimation();
         }
 
         kcc.Move(moveVelocity, jumpImpulse);
@@ -308,31 +276,13 @@ public class PlayerNetwork : NetworkBehaviour
         if (input.Buttons.WasPressed(PreviousButtons, EInputButton.Reload))
             Reload();
 
-        bool canFireState = MatchManager.Instance != null && MatchManager.Instance.CurrentPhase == MatchPhase.Playing && !IsDead;
-
-        IsFiringNet = canFireState && input.Buttons.IsSet(EInputButton.Fire);
-
-        if (IsFiringNet)
-            HoldFire(input.AimOrigin, input.AimDirection);
+        if (input.Buttons.IsSet(EInputButton.Fire))
+            HoldFire();
 
         if (input.Buttons.IsSet(EInputButton.AltFire))
             HoldAltFire();
 
         PreviousButtons = input.Buttons;
-    }
-
-    private void GetFireRay(Vector3 inputAimOrigin, Vector3 inputAimDirection, out Vector3 origin, out Vector3 direction)
-    {
-        if (inputAimDirection.sqrMagnitude > 0.0001f)
-        {
-            origin = inputAimOrigin;
-            direction = inputAimDirection.normalized;
-            return;
-        }
-
-        // fallback
-        origin = GetFireOriginPosition();
-        direction = GetAimDirection();
     }
 
     private void UpdateAnimator()
@@ -346,15 +296,6 @@ public class PlayerNetwork : NetworkBehaviour
         animator.SetFloat("VerticalSpeed", VerticalSpeedForAnim);
         animator.SetBool("IsGrounded", IsGroundedNet);
         animator.SetBool("IsDead", IsDead);
-
-        animator.SetBool("IsMoving", MoveState != 0);
-        animator.SetBool("IsFiring", IsFiringNet);
-
-        if (JumpAnimCount != lastAppliedJumpAnimCount)
-        {
-            lastAppliedJumpAnimCount = JumpAnimCount;
-            animator.SetTrigger("Jump");
-        }
     }
 
     private void RefreshAnimatorReference()
@@ -405,81 +346,6 @@ public class PlayerNetwork : NetworkBehaviour
 
         return 0;
     }
-    private Vector3 GetFireOriginPosition()
-    {
-        if (fireOrigin != null)
-            return fireOrigin.position;
-
-        if (playerView != null && playerView.FirstPersonAnchor != null)
-            return playerView.FirstPersonAnchor.position;
-
-        return transform.position + Vector3.up * 1.6f;
-    }
-    private Vector3 GetAimDirection()
-    {
-        return Quaternion.Euler(LookPitch, LookYaw, 0f) * Vector3.forward;
-    }
-
-    private void HoldFire(Vector3 inputAimOrigin, Vector3 inputAimDirection)
-    {
-        if (!HasStateAuthority)
-            return;
-
-        MatchManager match = MatchManager.Instance;
-        if (match == null || match.CurrentPhase != MatchPhase.Playing)
-            return;
-
-        if (IsDead)
-            return;
-
-        if (playerHealth != null && playerHealth.IsDead)
-            return;
-
-        if (!FireCooldown.ExpiredOrNotRunning(Runner))
-            return;
-
-        FireCooldown = TickTimer.CreateFromSeconds(Runner, rifleFireInterval);
-
-        FireAnimCount++;
-
-        GetFireRay(inputAimOrigin, inputAimDirection, out Vector3 origin, out Vector3 direction);
-
-        if (drawFireDebugRay)
-            Debug.DrawRay(origin, direction * rifleRange, Color.red, 0.2f);
-
-        RaycastHit[] hits = Physics.RaycastAll(
-            origin,
-            direction,
-            rifleRange,
-            rifleHitMask,
-            QueryTriggerInteraction.Ignore
-        );
-
-        if (hits == null || hits.Length == 0)
-            return;
-
-        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
-
-        foreach (RaycastHit hit in hits)
-        {
-            PlayerNetwork hitPlayer = hit.collider.GetComponentInParent<PlayerNetwork>();
-
-            // 자기 자신의 KCCCollider는 무시
-            if (hitPlayer == this)
-                continue;
-
-            PlayerHealth hitHealth = hit.collider.GetComponentInParent<PlayerHealth>();
-
-            if (hitHealth != null)
-            {
-                hitHealth.TakeDamage(rifleDamage, this);
-                break;
-            }
-
-            // 플레이어가 아닌 첫 번째 물체를 맞으면 총알은 거기서 막힘
-            break;
-        }
-    }
 
     private void UseAbility()
     {
@@ -489,6 +355,11 @@ public class PlayerNetwork : NetworkBehaviour
     private void Reload()
     {
         // 나중에 재장전 연결
+    }
+
+    private void HoldFire()
+    {
+        // 나중에 좌클릭 발사 연결
     }
 
     private void HoldAltFire()
@@ -504,50 +375,6 @@ public class PlayerNetwork : NetworkBehaviour
     public void SetDead(bool dead)
     {
         IsDead = dead;
-    }
-
-    public void ResetForRound(Vector3 spawnPosition, float yaw)
-    {
-        if (!HasStateAuthority)
-            return;
-
-        if (kcc != null)
-        {
-            kcc.SetPosition(spawnPosition);
-            kcc.SetLookRotation(0f, yaw);
-        }
-        else
-        {
-            transform.position = spawnPosition;
-            transform.rotation = Quaternion.Euler(0f, yaw, 0f);
-        }
-
-        LookPitch = 0f;
-        LookYaw = yaw;
-
-        MoveX = 0f;
-        MoveY = 0f;
-        MoveAmount = 0f;
-        MoveState = 0;
-
-        AirState = 0;
-        VerticalSpeedForAnim = 0f;
-        IsGroundedNet = false;
-
-        IsDead = false;
-        JumpAnimCount = 0;
-
-        if (playerHealth != null)
-            playerHealth.ResetHealth();
-
-        DashCooldown = default;
-        DashActiveTimer = default;
-        DashDirX = 0f;
-        DashDirZ = 0f;
-        FireCooldown = default;
-        FireAnimCount = 0;
-
-        PreviousButtons = default;
     }
 
     public void SetOfferedAugments(int a0, int a1, int a2)
