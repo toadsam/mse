@@ -9,6 +9,7 @@ public class PlayerHealth : NetworkBehaviour
 
     [Networked] public int CurrentHealth { get; private set; }
     [Networked] public NetworkBool IsAlive { get; private set; }
+    [Networked] public int DamageFeedbackCount { get; private set; }
 
     public int MaxHealth => maxHealth;
     public bool IsDead => !IsAlive;
@@ -36,30 +37,34 @@ public class PlayerHealth : NetworkBehaviour
 
         CurrentHealth = maxHealth;
         IsAlive = true;
+        DamageFeedbackCount = 0;
 
         if (owner != null)
             owner.SetDead(false);
     }
 
-    public void TakeDamage(int damage, PlayerNetwork attacker = null)
+    public bool TakeDamage(int damage, PlayerNetwork attacker = null)
     {
         if (!HasStateAuthority)
-            return;
+            return false;
 
         if (!IsAlive)
-            return;
+            return false;
 
         if (damage <= 0)
-            return;
+            return false;
 
         MatchManager match = MatchManager.Instance;
         if (match == null || match.CurrentPhase != MatchPhase.Playing)
-            return;
+            return false;
 
         CurrentHealth = Mathf.Max(0, CurrentHealth - damage);
+        DamageFeedbackCount++;
 
         if (CurrentHealth <= 0)
             Die(attacker);
+
+        return true;
     }
 
     private void Die(PlayerNetwork attacker)

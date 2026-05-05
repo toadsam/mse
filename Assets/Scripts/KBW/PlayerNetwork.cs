@@ -86,6 +86,8 @@ public class PlayerNetwork : NetworkBehaviour
 
     [Networked] private NetworkButtons PreviousButtons { get; set; }
 
+    [Networked] public int HitConfirmCount { get; private set; }
+
     private int lastAppliedJumpAnimCount = -1;
 
     private void Awake()
@@ -145,6 +147,10 @@ public class PlayerNetwork : NetworkBehaviour
 
         if (kcc != null)
             kcc.SetLookRotation(LookPitch, LookYaw);
+
+        FireCooldown = default;
+        FireAnimCount = 0;
+        HitConfirmCount = 0;
     }
 
     public override void Spawned()
@@ -475,7 +481,11 @@ public class PlayerNetwork : NetworkBehaviour
 
             if (hitHealth != null)
             {
-                hitHealth.TakeDamage(rifleDamage, this);
+                bool damageApplied = hitHealth.TakeDamage(rifleDamage, this);
+
+                if (damageApplied)
+                    HitConfirmCount++;
+
                 break;
             }
 
@@ -551,6 +561,10 @@ public class PlayerNetwork : NetworkBehaviour
         FireAnimCount = 0;
 
         PreviousButtons = default;
+
+        FireCooldown = default;
+        FireAnimCount = 0;
+        HitConfirmCount = 0;
     }
 
     public void SetOfferedAugments(int a0, int a1, int a2)
