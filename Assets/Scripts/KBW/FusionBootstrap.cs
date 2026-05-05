@@ -73,6 +73,23 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         aug3Pressed |= Input.GetKeyDown(KeyCode.Alpha3);
     }
 
+    private void FillAimRay(ref GameplayInput data)
+    {
+        Camera cam = Camera.main;
+
+        if (cam != null)
+        {
+            Ray aimRay = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+            data.AimOrigin = aimRay.origin;
+            data.AimDirection = aimRay.direction.normalized;
+        }
+        else
+        {
+            data.AimOrigin = Vector3.zero;
+            data.AimDirection = Vector3.zero;
+        }
+    }
+
     public void OnInput(NetworkRunner runner, NetworkInput input)
     {
         GameplayInput data = new GameplayInput();
@@ -83,6 +100,8 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         {
             data.Move = Vector2.zero;
             data.Look = Vector2.zero;
+
+            FillAimRay(ref data);
 
             data.Buttons.Set(EInputButton.Fire, false);
             data.Buttons.Set(EInputButton.AltFire, false);
@@ -116,6 +135,8 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             Input.GetAxisRaw("Mouse X"),
             Input.GetAxisRaw("Mouse Y")
         );
+
+        FillAimRay(ref data);
 
         // 유지형 입력
         data.Buttons.Set(EInputButton.Fire, Input.GetMouseButton(0));

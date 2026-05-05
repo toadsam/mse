@@ -18,5 +18,7 @@ public struct GameplayInput : INetworkInput
 {
     public Vector2 Move;
     public Vector2 Look;
+    public Vector3 AimOrigin;
+    public Vector3 AimDirection;
     public NetworkButtons Buttons;
 }
