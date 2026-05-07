@@ -43,36 +43,37 @@ public class AugmentSelectionUI : MonoBehaviour
         if (shouldShow != lastVisible)
         {
             SetVisible(shouldShow);
+            lastVisible = shouldShow;
 
             if (shouldShow)
-                RefreshUI();
-        }
+            {
+                // 새 라운드 진입 시 반드시 다시 갱신되도록 캐시 초기화
+                lastA0 = -999;
+                lastA1 = -999;
+                lastA2 = -999;
 
-        lastVisible = shouldShow;
+                RefreshUI();
+                UpdateOfferCache();
+            }
+            else
+            {
+                if (waitingText)
+                    waitingText.gameObject.SetActive(false);
+            }
+        }
 
         if (!shouldShow || localPlayer == null)
             return;
 
-        if (localPlayer.HasSelectedAugmentNet)
+        if (localPlayer.OfferedAugmentId0 != lastA0 ||
+            localPlayer.OfferedAugmentId1 != lastA1 ||
+            localPlayer.OfferedAugmentId2 != lastA2)
         {
-            if (waitingText) waitingText.gameObject.SetActive(true);
-
-            foreach (var card in cards)
-                card.SetInteractable(false);
+            RefreshUI();
+            UpdateOfferCache();
         }
 
-        if (shouldShow && localPlayer != null)
-        {
-            if (localPlayer.OfferedAugmentId0 != lastA0 ||
-                localPlayer.OfferedAugmentId1 != lastA1 ||
-                localPlayer.OfferedAugmentId2 != lastA2)
-            {
-                RefreshUI();
-                lastA0 = localPlayer.OfferedAugmentId0;
-                lastA1 = localPlayer.OfferedAugmentId1;
-                lastA2 = localPlayer.OfferedAugmentId2;
-            }
-        }
+        UpdateSelectionState();
     }
 
     public void RefreshUI()
@@ -110,5 +111,28 @@ public class AugmentSelectionUI : MonoBehaviour
     private void SetVisible(bool visible)
     {
         if (root) root.SetActive(visible);
+    }
+
+    private void UpdateOfferCache()
+    {
+        if (localPlayer == null) return;
+
+        lastA0 = localPlayer.OfferedAugmentId0;
+        lastA1 = localPlayer.OfferedAugmentId1;
+        lastA2 = localPlayer.OfferedAugmentId2;
+    }
+
+    private void UpdateSelectionState()
+    {
+        bool selected = localPlayer != null && localPlayer.HasSelectedAugmentNet;
+
+        if (waitingText)
+            waitingText.gameObject.SetActive(selected);
+
+        foreach (var card in cards)
+        {
+            if (card != null)
+                card.SetInteractable(!selected);
+        }
     }
 }
