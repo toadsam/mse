@@ -122,10 +122,12 @@ public class MatchManager : NetworkBehaviour
         if (!HasStateAuthority)
             return;
 
-        Phase = MatchPhase.ChoosingAugment;
         RoundWinnerSlot = -1;
+        PhaseTimer = default;
 
         AssignAugmentsToAllPlayers();
+
+        Phase = MatchPhase.ChoosingAugment;
     }
 
     private void EnterRoundIntroPhase()

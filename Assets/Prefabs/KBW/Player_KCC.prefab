@@ -328,9 +328,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerNetwork
   baseMoveSpeed: 8
-  dashDistance: 100
-  dashCooldownSeconds: 1
-  dashSpeed: 100
+  dashDistance: 7
+  dashCooldownSeconds: 2
+  dashSpeed: 30
   rifleDamage: 20
   rifleRange: 80
   rifleFireInterval: 0.18
@@ -346,7 +346,7 @@ MonoBehaviour:
   jumpImpulseStrength: 12
   _AirState: 0
   _VerticalSpeedForAnim: 0
-  lookSensitivity: 15
+  lookSensitivity: 10
   lookDeadzone: 0.01
   minPitch: -70
   maxPitch: 75
@@ -372,6 +372,7 @@ MonoBehaviour:
     _value: 0
   _DashDistanceBonus: 0
   _DashCooldownMultiplier: 0
+  _HitConfirmCount: 0
 --- !u!54 &641033716158957635
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -485,6 +486,7 @@ MonoBehaviour:
   _CurrentHealth: 0
   _IsAlive:
     _value: 0
+  _DamageFeedbackCount: 0
 --- !u!1001 &684687399937621452
 PrefabInstance:
   m_ObjectHideFlags: 0
