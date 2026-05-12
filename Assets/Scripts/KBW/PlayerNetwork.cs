@@ -50,6 +50,11 @@ public class PlayerNetwork : NetworkBehaviour
     [SerializeField] private Animator animator;
     [SerializeField] private bool useAnimator = true;
 
+    [Header("Projectile Rifle")]
+    [SerializeField] private NetworkPrefabRef rifleProjectilePrefab;
+    [SerializeField] private float projectileSpeed = 35f;
+    [SerializeField] private float projectileSpawnForwardOffset = 0.4f;
+
     private SimpleKCC kcc;
     private Rigidbody rb;
     private PlayerView playerView;
@@ -448,50 +453,50 @@ public class PlayerNetwork : NetworkBehaviour
             return;
 
         FireCooldown = TickTimer.CreateFromSeconds(Runner, rifleFireInterval);
-
         FireAnimCount++;
 
-        GetFireRay(inputAimOrigin, inputAimDirection, out Vector3 origin, out Vector3 direction);
+        GetFireRay(inputAimOrigin, inputAimDirection, out Vector3 aimOrigin, out Vector3 aimDirection);
 
-        if (drawFireDebugRay)
-            Debug.DrawRay(origin, direction * rifleRange, Color.red, 0.2f);
+        Vector3 spawnPos = GetFireOriginPosition();
 
-        RaycastHit[] hits = Physics.RaycastAll(
-            origin,
-            direction,
-            rifleRange,
-            rifleHitMask,
-            QueryTriggerInteraction.Ignore
+        // 총구에서 바로 카메라 방향으로 나가게 하면 총알이 카메라와 어긋나 보일 수 있으므로,
+        // 카메라가 바라보는 지점을 기준으로 총구에서 목표점으로 향하게 만든다.
+        Vector3 targetPoint = aimOrigin + aimDirection * rifleRange;
+
+        if (Physics.Raycast(aimOrigin, aimDirection, out RaycastHit aimHit, rifleRange, rifleHitMask, QueryTriggerInteraction.Ignore))
+            targetPoint = aimHit.point;
+
+        Vector3 projectileDir = (targetPoint - spawnPos).normalized;
+
+        // 총알이 자기 몸에 바로 닿는 것을 줄이기 위한 약간의 전방 오프셋
+        spawnPos += projectileDir * projectileSpawnForwardOffset;
+
+        if (rifleProjectilePrefab.IsValid == false)
+        {
+            Debug.LogWarning("[PlayerNetwork] Rifle projectile prefab is not assigned.");
+            return;
+        }
+
+        Runner.Spawn(
+            rifleProjectilePrefab,
+            spawnPos,
+            Quaternion.LookRotation(projectileDir),
+            Object.InputAuthority,
+            (runner, obj) =>
+            {
+                RifleProjectile projectile = obj.GetComponent<RifleProjectile>();
+                if (projectile != null)
+                    projectile.Init(this, projectileDir, projectileSpeed, rifleDamage);
+            }
         );
+    }
 
-        if (hits == null || hits.Length == 0)
+    public void AddHitConfirm()
+    {
+        if (!HasStateAuthority)
             return;
 
-        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
-
-        foreach (RaycastHit hit in hits)
-        {
-            PlayerNetwork hitPlayer = hit.collider.GetComponentInParent<PlayerNetwork>();
-
-            // 자기 자신의 KCCCollider는 무시
-            if (hitPlayer == this)
-                continue;
-
-            PlayerHealth hitHealth = hit.collider.GetComponentInParent<PlayerHealth>();
-
-            if (hitHealth != null)
-            {
-                bool damageApplied = hitHealth.TakeDamage(rifleDamage, this);
-
-                if (damageApplied)
-                    HitConfirmCount++;
-
-                break;
-            }
-
-            // 플레이어가 아닌 첫 번째 물체를 맞으면 총알은 거기서 막힘
-            break;
-        }
+        HitConfirmCount++;
     }
 
     private void UseAbility()

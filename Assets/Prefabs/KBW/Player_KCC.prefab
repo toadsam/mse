@@ -333,7 +333,7 @@ MonoBehaviour:
   dashSpeed: 30
   rifleDamage: 20
   rifleRange: 80
-  rifleFireInterval: 0.18
+  rifleFireInterval: 0.3
   rifleHitMask:
     serializedVersion: 2
     m_Bits: 65
@@ -352,6 +352,10 @@ MonoBehaviour:
   maxPitch: 75
   animator: {fileID: 0}
   useAnimator: 1
+  rifleProjectilePrefab:
+    RawGuidValue: 514db731d92b4044ea0ad4f0e96a7a58
+  projectileSpeed: 35
+  projectileSpawnForwardOffset: 0.4
   _SlotIndex: 0
   _CharacterId: 0
   _MoveSpeedBonus: 0
