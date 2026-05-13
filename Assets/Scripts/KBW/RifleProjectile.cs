@@ -8,31 +8,32 @@ public class RifleProjectile : NetworkBehaviour
     [SerializeField] private LayerMask hitMask = ~0;
     [SerializeField] private float lifeSeconds = 3f;
 
-    [Networked] private Vector3 Direction { get; set; }
-    [Networked] private float Speed { get; set; }
-    [Networked] private int Damage { get; set; }
-    [Networked] private NetworkId OwnerId { get; set; }
-    [Networked] private TickTimer LifeTimer { get; set; }
+    private Vector3 direction;
+    private float speed;
+    private int damage;
+    private NetworkId ownerId;
+    private TickTimer lifeTimer;
 
-    private Vector3 previousPosition;
+    private bool hasInitialized;
 
-    public void Init(PlayerNetwork owner, Vector3 direction, float speed, int damage)
+    public void Init(NetworkRunner runner, PlayerNetwork owner, Vector3 projectileDirection, float projectileSpeed, int projectileDamage)
     {
-        if (!HasStateAuthority)
-            return;
+        direction = projectileDirection.sqrMagnitude > 0.0001f
+            ? projectileDirection.normalized
+            : transform.forward;
 
-        Direction = direction.normalized;
-        Speed = speed;
-        Damage = damage;
-        OwnerId = owner != null && owner.Object != null ? owner.Object.Id : default;
-        LifeTimer = TickTimer.CreateFromSeconds(Runner, lifeSeconds);
+        speed = projectileSpeed;
+        damage = projectileDamage;
+        ownerId = owner != null && owner.Object != null ? owner.Object.Id : default;
+        lifeTimer = TickTimer.CreateFromSeconds(runner, lifeSeconds);
 
-        previousPosition = transform.position;
+        hasInitialized = true;
     }
 
     public override void Spawned()
     {
-        previousPosition = transform.position;
+        // OnBeforeSpawned 콜백에서 Init이 이미 호출되는 구조이므로
+        // 여기서는 따로 Networked 값을 읽거나 쓰지 않습니다.
     }
 
     public override void FixedUpdateNetwork()
@@ -40,21 +41,24 @@ public class RifleProjectile : NetworkBehaviour
         if (!HasStateAuthority)
             return;
 
-        if (LifeTimer.ExpiredOrNotRunning(Runner))
+        if (!hasInitialized)
+            return;
+
+        if (lifeTimer.ExpiredOrNotRunning(Runner))
         {
             Runner.Despawn(Object);
             return;
         }
 
         Vector3 currentPosition = transform.position;
-        Vector3 nextPosition = currentPosition + Direction * Speed * Runner.DeltaTime;
+        Vector3 nextPosition = currentPosition + direction * speed * Runner.DeltaTime;
 
         CheckHit(currentPosition, nextPosition);
 
         transform.position = nextPosition;
 
-        if (Direction.sqrMagnitude > 0.001f)
-            transform.rotation = Quaternion.LookRotation(Direction);
+        if (direction.sqrMagnitude > 0.001f)
+            transform.rotation = Quaternion.LookRotation(direction);
     }
 
     private void CheckHit(Vector3 from, Vector3 to)
@@ -73,42 +77,34 @@ public class RifleProjectile : NetworkBehaviour
         PlayerNetwork hitPlayer = hit.collider.GetComponentInParent<PlayerNetwork>();
 
         // 발사자 자신은 무시
-        if (hitPlayer != null && hitPlayer.Object != null && hitPlayer.Object.Id == OwnerId)
+        if (hitPlayer != null && hitPlayer.Object != null && hitPlayer.Object.Id == ownerId)
             return;
-
-        bool hitSomethingDamageable = false;
 
         PlayerHealth playerHealth = hit.collider.GetComponentInParent<PlayerHealth>();
         if (playerHealth != null)
         {
             PlayerNetwork ownerPlayer = FindOwnerPlayer();
-            bool applied = playerHealth.TakeDamage(Damage, ownerPlayer);
+            bool applied = playerHealth.TakeDamage(damage, ownerPlayer);
 
             if (applied && ownerPlayer != null)
                 ownerPlayer.AddHitConfirm();
-
-            hitSomethingDamageable = true;
         }
         else
         {
             DummyTargetHealth dummy = hit.collider.GetComponentInParent<DummyTargetHealth>();
             if (dummy != null)
-            {
-                dummy.TakeDamage(Damage);
-                hitSomethingDamageable = true;
-            }
+                dummy.TakeDamage(damage);
         }
 
-        // 플레이어, 더미, 벽, 바닥 등 어떤 물체든 맞으면 총알 제거
         Runner.Despawn(Object);
     }
 
     private PlayerNetwork FindOwnerPlayer()
     {
-        if (OwnerId == default)
+        if (ownerId == default)
             return null;
 
-        NetworkObject ownerObject = Runner.FindObject(OwnerId);
+        NetworkObject ownerObject = Runner.FindObject(ownerId);
         if (ownerObject == null)
             return null;
 

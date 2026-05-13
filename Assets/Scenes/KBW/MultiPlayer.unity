@@ -10882,7 +10882,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MatchManager
   augmentDatabase: {fileID: 1442670098}
-  playersRequiredToStart: 2
+  playersRequiredToStart: 1
   roundsToWin: 3
   roundIntroSeconds: 2
   roundResultSeconds: 3

@@ -354,7 +354,6 @@ public class PlayerNetwork : NetworkBehaviour
         animator.SetFloat("MoveAmount", MoveAmount);
         animator.SetInteger("MoveState", MoveState);
         animator.SetInteger("AirState", AirState);
-        //animator.SetFloat("VerticalSpeed", VerticalSpeedForAnim);
         animator.SetBool("IsGrounded", IsGroundedNet);
         animator.SetBool("IsDead", IsDead);
 
@@ -509,11 +508,11 @@ public class PlayerNetwork : NetworkBehaviour
             spawnPos,
             Quaternion.LookRotation(projectileDir),
             Object.InputAuthority,
-            (runner, obj) =>
+            (runner, obj) => 
             {
                 RifleProjectile projectile = obj.GetComponent<RifleProjectile>();
                 if (projectile != null)
-                    projectile.Init(this, projectileDir, projectileSpeed, rifleDamage);
+                    projectile.Init(runner, this, projectileDir, projectileSpeed, rifleDamage);
             }
         );
     }
