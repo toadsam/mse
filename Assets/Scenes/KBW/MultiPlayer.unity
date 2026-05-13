@@ -26692,12 +26692,12 @@ GameObject:
   - component: {fileID: 540690965}
   - component: {fileID: 540690969}
   m_Layer: 6
-  m_Name: Capsule
+  m_Name: Dummy
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!136 &540690965
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -26805,8 +26805,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0daa1782c68b4b842ba94b34722f8bf2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DummyTargetHealth
-  maxHealth: 100
+  maxHealth: 10000
   resetWhenDead: 1
+  targetRenderer: {fileID: 0}
+  normalColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+  hitColor: {r: 1, g: 0, b: 0, a: 1}
+  hitFlashDuration: 0.12
 --- !u!1001 &543182706
 PrefabInstance:
   m_ObjectHideFlags: 0

@@ -474,6 +474,8 @@ MonoBehaviour:
   characterB: {fileID: 5548590265764540135}
   animatorA: {fileID: 7223037813244781487}
   animatorB: {fileID: 5501023009065555459}
+  muzzleA: {fileID: 2844314927014452411}
+  muzzleB: {fileID: 5020563986229913576}
 --- !u!114 &1424595808091354063
 MonoBehaviour:
   m_ObjectHideFlags: 0

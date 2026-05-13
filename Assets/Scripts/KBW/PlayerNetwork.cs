@@ -112,12 +112,9 @@ public class PlayerNetwork : NetworkBehaviour
         if (animator == null)
             animator = GetComponentInChildren<Animator>(true);
 
-        if (fireOrigin == null && playerView != null)
+        if (fireOrigin == null)
         {
-            if (playerView.FirstPersonAnchor != null)
-                fireOrigin = playerView.FirstPersonAnchor;
-            else
-                fireOrigin = transform;
+            Debug.LogWarning($"[PlayerNetwork] fireOrigin is not assigned on {name}. Projectile will use fallback muzzle position.");
         }
     }
 
@@ -357,7 +354,7 @@ public class PlayerNetwork : NetworkBehaviour
         animator.SetFloat("MoveAmount", MoveAmount);
         animator.SetInteger("MoveState", MoveState);
         animator.SetInteger("AirState", AirState);
-        animator.SetFloat("VerticalSpeed", VerticalSpeedForAnim);
+        //animator.SetFloat("VerticalSpeed", VerticalSpeedForAnim);
         animator.SetBool("IsGrounded", IsGroundedNet);
         animator.SetBool("IsDead", IsDead);
 
@@ -419,15 +416,26 @@ public class PlayerNetwork : NetworkBehaviour
 
         return 0;
     }
+
+    [SerializeField] private Vector3 fallbackMuzzleLocalOffset = new Vector3(0.25f, 1.35f, 0.65f);
+
     private Vector3 GetFireOriginPosition()
     {
+        // 1순위: 현재 활성 캐릭터의 Muzzle
+        if (playerVisuals != null)
+        {
+            Transform activeMuzzle = playerVisuals.GetActiveMuzzle(CharacterId);
+            if (activeMuzzle != null)
+                return activeMuzzle.position;
+        }
+
+        // 2순위: 기존 fireOrigin
         if (fireOrigin != null)
             return fireOrigin.position;
 
-        if (playerView != null && playerView.FirstPersonAnchor != null)
-            return playerView.FirstPersonAnchor.position;
-
-        return transform.position + Vector3.up * 1.6f;
+        // 3순위: 카메라 앵커가 아니라 플레이어 루트 기준 fallback
+        Quaternion yawRotation = Quaternion.Euler(0f, LookYaw, 0f);
+        return transform.position + yawRotation * fallbackMuzzleLocalOffset;
     }
     private Vector3 GetAimDirection()
     {
@@ -457,25 +465,44 @@ public class PlayerNetwork : NetworkBehaviour
 
         GetFireRay(inputAimOrigin, inputAimDirection, out Vector3 aimOrigin, out Vector3 aimDirection);
 
-        Vector3 spawnPos = GetFireOriginPosition();
-
-        // 총구에서 바로 카메라 방향으로 나가게 하면 총알이 카메라와 어긋나 보일 수 있으므로,
-        // 카메라가 바라보는 지점을 기준으로 총구에서 목표점으로 향하게 만든다.
         Vector3 targetPoint = aimOrigin + aimDirection * rifleRange;
 
-        if (Physics.Raycast(aimOrigin, aimDirection, out RaycastHit aimHit, rifleRange, rifleHitMask, QueryTriggerInteraction.Ignore))
-            targetPoint = aimHit.point;
+        RaycastHit[] aimHits = Physics.RaycastAll(
+            aimOrigin,
+            aimDirection,
+            rifleRange,
+            rifleHitMask,
+            QueryTriggerInteraction.Ignore
+        );
 
+        if (aimHits != null && aimHits.Length > 0)
+        {
+            System.Array.Sort(aimHits, (a, b) => a.distance.CompareTo(b.distance));
+
+            foreach (RaycastHit hit in aimHits)
+            {
+                PlayerNetwork hitPlayer = hit.collider.GetComponentInParent<PlayerNetwork>();
+
+                if (hitPlayer == this)
+                    continue;
+
+                targetPoint = hit.point;
+                break;
+            }
+        }
+
+        Vector3 spawnPos = GetFireOriginPosition();
         Vector3 projectileDir = (targetPoint - spawnPos).normalized;
 
-        // 총알이 자기 몸에 바로 닿는 것을 줄이기 위한 약간의 전방 오프셋
+        if (projectileDir.sqrMagnitude < 0.0001f)
+            projectileDir = GetAimDirection();
+
         spawnPos += projectileDir * projectileSpawnForwardOffset;
 
-        if (rifleProjectilePrefab.IsValid == false)
-        {
-            Debug.LogWarning("[PlayerNetwork] Rifle projectile prefab is not assigned.");
-            return;
-        }
+        Debug.DrawLine(transform.position, spawnPos, Color.cyan, 1.0f);
+        Debug.DrawRay(spawnPos, projectileDir * 5f, Color.yellow, 1.0f);
+
+        Transform activeMuzzle = playerVisuals != null ? playerVisuals.GetActiveMuzzle(CharacterId) : null;
 
         Runner.Spawn(
             rifleProjectilePrefab,

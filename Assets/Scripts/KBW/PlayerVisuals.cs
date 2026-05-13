@@ -8,6 +8,10 @@ public class PlayerVisuals : MonoBehaviour
     [SerializeField] private Animator animatorA;
     [SerializeField] private Animator animatorB;
 
+    [Header("Weapon Muzzle")]
+    [SerializeField] private Transform muzzleA;
+    [SerializeField] private Transform muzzleB;
+
     private byte _lastApplied = 255;
 
     public void Refresh(byte characterId)
@@ -22,5 +26,16 @@ public class PlayerVisuals : MonoBehaviour
     public Animator GetActiveAnimator(byte characterId)
     {
         return characterId == 0 ? animatorA : animatorB;
+    }
+
+    public Transform GetActiveMuzzle(byte characterId)
+    {
+        if (characterId == 0)
+            return muzzleA;
+
+        if (characterId == 1)
+            return muzzleB;
+
+        return null;
     }
 }
