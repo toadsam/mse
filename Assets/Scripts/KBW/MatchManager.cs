@@ -10,7 +10,7 @@ public class MatchManager : NetworkBehaviour
     [SerializeField] private AugmentDatabase augmentDatabase;
 
     [Header("Match Rules")]
-    [SerializeField] private int playersRequiredToStart = 1; // 혼자 테스트 중이면 1, 실제 멀티 테스트는 2
+    [SerializeField] private int playersRequiredToStart = 2; // 혼자 테스트 중이면 1, 실제 멀티 테스트는 2
     [SerializeField] private int roundsToWin = 3;
     [SerializeField] private float roundIntroSeconds = 2.0f;
     [SerializeField] private float roundResultSeconds = 3.0f;
@@ -20,6 +20,14 @@ public class MatchManager : NetworkBehaviour
     [SerializeField] private Vector3 player1SpawnPosition = new Vector3(5f, 1f, 0f);
     [SerializeField] private float player0SpawnYaw = 90f;
     [SerializeField] private float player1SpawnYaw = -90f;
+
+    [Header("Arena Zones")]
+    [SerializeField] private ArenaZone[] arenaZones;
+    [SerializeField] private bool resetArenaPoolWhenEmpty = false;
+
+    [Networked] public int ActiveArenaIndex { get; private set; }
+
+    private readonly List<int> unusedArenaIndices = new();
 
     [Header("Debug")]
     [SerializeField] private bool enableDebugContextMenu = true;
@@ -34,6 +42,8 @@ public class MatchManager : NetworkBehaviour
     [Networked] public int MatchWinnerSlot { get; private set; }
 
     [Networked] private TickTimer PhaseTimer { get; set; }
+
+    private int lastAppliedArenaIndex = -999;
 
     public MatchPhase CurrentPhase => Phase;
 
@@ -101,6 +111,12 @@ public class MatchManager : NetworkBehaviour
     public override void Render()
     {
         GameManager.Instance?.SyncCursorWithPhase();
+
+        if (lastAppliedArenaIndex != ActiveArenaIndex)
+        {
+            lastAppliedArenaIndex = ActiveArenaIndex;
+            ApplyActiveArenaVisuals();
+        }
     }
 
     public void StartMatchFlow()
@@ -114,7 +130,45 @@ public class MatchManager : NetworkBehaviour
         RoundWinnerSlot = -1;
         MatchWinnerSlot = -1;
 
+        InitializeArenaPool();
+
         EnterAugmentPhase();
+    }
+
+    private void InitializeArenaPool()
+    {
+        unusedArenaIndices.Clear();
+
+        if (arenaZones == null || arenaZones.Length == 0)
+        {
+            Debug.LogError("[MatchManager] ArenaZones are not assigned.");
+            ActiveArenaIndex = -1;
+            return;
+        }
+
+        for (int i = 0; i < arenaZones.Length; i++)
+        {
+            if (arenaZones[i] != null)
+            {
+                unusedArenaIndices.Add(i);
+            }
+            else
+            {
+                Debug.LogWarning($"[MatchManager] ArenaZone index {i} is null.");
+            }
+        }
+
+        if (unusedArenaIndices.Count == 0)
+        {
+            Debug.LogError("[MatchManager] No valid ArenaZone exists.");
+            ActiveArenaIndex = -1;
+            return;
+        }
+
+        ActiveArenaIndex = -1;
+        ApplyActiveArenaVisuals();
+
+        Debug.Log($"[MatchManager] Arena pool initialized. Count: {unusedArenaIndices.Count}");
     }
 
     public void EnterAugmentPhase()
@@ -124,6 +178,9 @@ public class MatchManager : NetworkBehaviour
 
         RoundWinnerSlot = -1;
         PhaseTimer = default;
+
+        ChooseArenaForRound();
+        ResetAllPlayersForRound();
 
         AssignAugmentsToAllPlayers();
 
@@ -136,9 +193,43 @@ public class MatchManager : NetworkBehaviour
             return;
 
         Phase = MatchPhase.RoundIntro;
+
         ResetAllPlayersForRound();
 
         PhaseTimer = TickTimer.CreateFromSeconds(Runner, roundIntroSeconds);
+    }
+
+    private void ChooseArenaForRound()
+    {
+        if (arenaZones == null || arenaZones.Length == 0)
+        {
+            Debug.LogError("[MatchManager] ArenaZones are not assigned.");
+            ActiveArenaIndex = -1;
+            return;
+        }
+
+        if (unusedArenaIndices.Count == 0)
+        {
+            if (resetArenaPoolWhenEmpty)
+            {
+                InitializeArenaPool();
+            }
+            else
+            {
+                Debug.LogWarning("[MatchManager] No unused arena left. Reusing arena 0.");
+                ActiveArenaIndex = 0;
+                ApplyActiveArenaVisuals();
+                return;
+            }
+        }
+
+        int randomListIndex = Random.Range(0, unusedArenaIndices.Count);
+        ActiveArenaIndex = unusedArenaIndices[randomListIndex];
+        unusedArenaIndices.RemoveAt(randomListIndex);
+
+        ApplyActiveArenaVisuals();
+
+        Debug.Log($"[MatchManager] Round {RoundIndex} Arena: {ActiveArenaIndex}");
     }
 
     public void EnterPlayingPhase()
@@ -173,8 +264,18 @@ public class MatchManager : NetworkBehaviour
         if (!HasStateAuthority)
             return;
 
-        RoundIndex++;
-        EnterAugmentPhase();
+        if (Phase != MatchPhase.RoundResult)
+            return;
+
+        if (MatchWinnerSlot >= 0)
+        {
+            EnterMatchResultPhase();
+        }
+        else
+        {
+            RoundIndex++;
+            EnterAugmentPhase();
+        }
     }
 
     public void NotifyPlayerSelectedAugment(PlayerNetwork player)
@@ -252,6 +353,33 @@ public class MatchManager : NetworkBehaviour
         }
     }
 
+    private List<PlayerNetwork> GetAllPlayers()
+    {
+        List<PlayerNetwork> players = new List<PlayerNetwork>();
+
+        PlayerNetwork[] foundPlayers = FindObjectsByType<PlayerNetwork>(FindObjectsSortMode.None);
+
+        foreach (PlayerNetwork player in foundPlayers)
+        {
+            if (player == null)
+                continue;
+
+            if (player.Object == null)
+                continue;
+
+            // 같은 Runner에 속한 플레이어만 사용
+            if (Runner != null && player.Runner != Runner)
+                continue;
+
+            players.Add(player);
+        }
+
+        // 슬롯 순서가 항상 일정하도록 정렬
+        players.Sort((a, b) => a.SlotIndex.CompareTo(b.SlotIndex));
+
+        return players;
+    }
+
     private bool HaveAllPlayersSelectedAugment()
     {
         List<PlayerNetwork> players = GetAllPlayers();
@@ -272,6 +400,8 @@ public class MatchManager : NetworkBehaviour
     {
         List<PlayerNetwork> players = GetAllPlayers();
 
+        Debug.Log($"[MatchManager] ResetAllPlayersForRound / ActiveArenaIndex: {ActiveArenaIndex}");
+
         foreach (PlayerNetwork player in players)
         {
             if (player == null)
@@ -280,36 +410,63 @@ public class MatchManager : NetworkBehaviour
             Vector3 pos = GetSpawnPosition(player.SlotIndex);
             float yaw = GetSpawnYaw(player.SlotIndex);
 
+            Debug.Log($"[MatchManager] Reset Player Slot {player.SlotIndex} -> Pos {pos}, Yaw {yaw}");
+
             player.ResetForRound(pos, yaw);
         }
     }
 
     private Vector3 GetSpawnPosition(int slot)
     {
-        return slot == 0 ? player0SpawnPosition : player1SpawnPosition;
+        ArenaZone arena = GetActiveArena();
+
+        if (arena != null)
+        {
+            Vector3 arenaPos = arena.GetSpawnPosition(slot);
+            Debug.Log($"[MatchManager] Using Arena Spawn. ArenaIndex: {ActiveArenaIndex}, Slot: {slot}, Pos: {arenaPos}");
+            return arenaPos;
+        }
+
+        Vector3 fallback = slot == 0 ? player0SpawnPosition : player1SpawnPosition;
+        Debug.LogWarning($"[MatchManager] Using Fallback Spawn. ActiveArenaIndex: {ActiveArenaIndex}, Slot: {slot}, Pos: {fallback}");
+
+        return fallback;
     }
 
     private float GetSpawnYaw(int slot)
     {
+        ArenaZone arena = GetActiveArena();
+
+        if (arena != null)
+            return arena.GetSpawnYaw(slot);
+
+        // fallback
         return slot == 0 ? player0SpawnYaw : player1SpawnYaw;
     }
 
-    private List<PlayerNetwork> GetAllPlayers()
+    private ArenaZone GetActiveArena()
     {
-        List<PlayerNetwork> result = new();
+        if (arenaZones == null)
+            return null;
 
-        foreach (PlayerRef playerRef in Runner.ActivePlayers)
+        if (ActiveArenaIndex < 0 || ActiveArenaIndex >= arenaZones.Length)
+            return null;
+
+        return arenaZones[ActiveArenaIndex];
+    }
+
+    private void ApplyActiveArenaVisuals()
+    {
+        if (arenaZones == null)
+            return;
+
+        for (int i = 0; i < arenaZones.Length; i++)
         {
-            NetworkObject obj = Runner.GetPlayerObject(playerRef);
-            if (obj == null)
+            if (arenaZones[i] == null)
                 continue;
 
-            PlayerNetwork player = obj.GetComponent<PlayerNetwork>();
-            if (player != null)
-                result.Add(player);
+            arenaZones[i].SetActiveArena(i == ActiveArenaIndex);
         }
-
-        return result;
     }
 
     public AugmentDefinition GetAugmentById(int id)
