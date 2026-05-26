@@ -1,6 +1,6 @@
 #FileLock
-#Thu Apr 30 14:25:06 KST 2026
-server=172.21.86.173\:51282
-hostName=172.21.86.173
+#Tue May 26 21:50:01 KST 2026
+server=192.168.0.3\:51154
+hostName=DESKTOP-P0LK9FH
 method=file
-id=19ddcd908c9fb77ffafa5e59628999a02530b0029da
+id=19e6455b70537b655910eb0b7223e5defb054d3c661

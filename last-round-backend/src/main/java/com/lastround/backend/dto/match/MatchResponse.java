@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Builder
@@ -16,4 +17,5 @@ public class MatchResponse {
     private Integer player1Score;
     private Integer player2Score;
     private LocalDateTime createdAt;
+    private List<MatchPlayerHistoryResponse> players;
 }

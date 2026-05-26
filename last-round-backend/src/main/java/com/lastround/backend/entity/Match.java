@@ -13,10 +13,10 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Entity
 @Table(name = "matches", indexes = {
-        @Index(name = "idx_matches_created_at", columnList = "createdAt"),
-        @Index(name = "idx_matches_player1", columnList = "player1Id"),
-        @Index(name = "idx_matches_player2", columnList = "player2Id"),
-        @Index(name = "idx_matches_winner", columnList = "winnerId")
+    @Index(name = "idx_matches_created_at", columnList = "created_at"),
+    @Index(name = "idx_matches_player1", columnList = "player1id"),
+    @Index(name = "idx_matches_player2", columnList = "player2id"),
+    @Index(name = "idx_matches_winner", columnList = "winner_id")
 })
 public class Match {
 
@@ -24,22 +24,22 @@ public class Match {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(name = "player1id", nullable = false)
     private Long player1Id;
 
-    @Column(nullable = false)
+    @Column(name = "player2id", nullable = false)
     private Long player2Id;
 
-    @Column(nullable = false)
+    @Column(name = "winner_id", nullable = false)
     private Long winnerId;
 
-    @Column(nullable = false)
+    @Column(name = "player1score", nullable = false)
     private Integer player1Score;
 
-    @Column(nullable = false)
+    @Column(name = "player2score", nullable = false)
     private Integer player2Score;
 
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
