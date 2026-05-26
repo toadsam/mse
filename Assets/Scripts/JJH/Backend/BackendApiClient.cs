@@ -7,15 +7,23 @@ using UnityEngine.Networking;
 
 public class BackendApiClient : MonoBehaviour
 {
+    private const string DefaultBaseUrl = "http://localhost:8080";
+    private const string BaseUrlKey = "LastRound.BackendBaseUrl";
+
     public static BackendApiClient Instance { get; private set; }
 
-    [SerializeField] private string baseUrl = "http://localhost:8080";
+    [SerializeField] private string baseUrl = DefaultBaseUrl;
     [SerializeField] private int timeoutSeconds = 10;
 
     public string BaseUrl
     {
         get => baseUrl;
-        set => baseUrl = string.IsNullOrWhiteSpace(value) ? "http://localhost:8080" : value.TrimEnd('/');
+        set
+        {
+            baseUrl = NormalizeBaseUrl(value);
+            PlayerPrefs.SetString(BaseUrlKey, baseUrl);
+            PlayerPrefs.Save();
+        }
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -39,7 +47,7 @@ public class BackendApiClient : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
-        BaseUrl = baseUrl;
+        BaseUrl = PlayerPrefs.GetString(BaseUrlKey, NormalizeBaseUrl(baseUrl));
     }
 
     public Coroutine Signup(SignupRequest request, Action<AuthResponse> onSuccess, Action<string> onError)
@@ -195,9 +203,14 @@ public class BackendApiClient : MonoBehaviour
 
     private string BuildUrl(string path)
     {
-        string normalizedBase = string.IsNullOrWhiteSpace(baseUrl) ? "http://localhost:8080" : baseUrl.TrimEnd('/');
+        string normalizedBase = NormalizeBaseUrl(baseUrl);
         string normalizedPath = path.StartsWith("/") ? path : "/" + path;
         return normalizedBase + normalizedPath;
+    }
+
+    private static string NormalizeBaseUrl(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? DefaultBaseUrl : value.TrimEnd('/');
     }
 
     private string FormatError(long status, string requestError, string body)

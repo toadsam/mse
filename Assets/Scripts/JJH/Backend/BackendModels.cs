@@ -63,6 +63,26 @@ public class MatchResultRequest
     public long winnerId;
     public int player1Score;
     public int player2Score;
+    public List<MatchPlayerResultRequest> players;
+}
+
+[Serializable]
+public class MatchPlayerResultRequest
+{
+    public long userId;
+    public string result;
+    public int score;
+    public int damageDealt;
+    public string characterName;
+    public List<MatchPlayerAugmentRequest> augments;
+}
+
+[Serializable]
+public class MatchPlayerAugmentRequest
+{
+    public long augmentId;
+    public int selectedOrder;
+    public int selectedRound;
 }
 
 [Serializable]
