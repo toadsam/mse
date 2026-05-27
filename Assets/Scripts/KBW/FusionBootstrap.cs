@@ -246,14 +246,16 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             playerPrefab,
             spawnPos,
             Quaternion.identity,
-            player
+            player,
+            (runner, obj) =>
+            {
+                PlayerNetwork pn = obj.GetComponent<PlayerNetwork>();
+                if (pn != null)
+                    pn.ServerInitialize((byte)slot);
+            }
         );
 
         runner.SetPlayerObject(player, playerObj);
-
-        PlayerNetwork pn = playerObj.GetComponent<PlayerNetwork>();
-        if (pn != null)
-            pn.ServerInitialize((byte)slot);
 
         spawnedPlayers.Add(player, playerObj);
 

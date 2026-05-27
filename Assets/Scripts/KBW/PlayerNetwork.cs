@@ -55,6 +55,9 @@ public class PlayerNetwork : NetworkBehaviour
     [SerializeField] private float projectileSpeed = 35f;
     [SerializeField] private float projectileSpawnForwardOffset = 0.4f;
 
+    [Networked] public NetworkString<_32> PlayerName { get; private set; }
+    [Networked] public NetworkBool HasAppliedProfile { get; private set; }
+
     private SimpleKCC kcc;
     private Rigidbody rb;
     private PlayerView playerView;
@@ -126,7 +129,13 @@ public class PlayerNetwork : NetworkBehaviour
         AirState = 0;
         VerticalSpeedForAnim = 0f;
         SlotIndex = slotIndex;
-        CharacterId = slotIndex;
+
+        if (!HasAppliedProfile)
+        {
+            CharacterId = 0;
+            PlayerName = $"Player {slotIndex + 1}";
+        }
+        HasAppliedProfile = false;
 
         MoveSpeedBonus = 0f;
 
@@ -150,8 +159,6 @@ public class PlayerNetwork : NetworkBehaviour
         if (kcc != null)
             kcc.SetLookRotation(LookPitch, LookYaw);
 
-        FireCooldown = default;
-        FireAnimCount = 0;
         HitConfirmCount = 0;
     }
 
@@ -162,6 +169,7 @@ public class PlayerNetwork : NetworkBehaviour
 
         if (rb == null)
             rb = GetComponent<Rigidbody>();
+
         if (playerHealth == null)
             playerHealth = GetComponent<PlayerHealth>();
 
@@ -183,6 +191,13 @@ public class PlayerNetwork : NetworkBehaviour
             return;
 
         GameManager.Instance?.RegisterLocalPlayer(this, playerView);
+
+        Debug.Log($"[PlayerNetwork] Send profile RPC. Name={LocalPlayerProfile.PlayerName}, CharacterId={LocalPlayerProfile.CharacterId}");
+
+        RPC_RequestApplyProfile(
+            LocalPlayerProfile.CharacterId,
+            LocalPlayerProfile.PlayerName
+        );
     }
 
     public override void Despawned(NetworkRunner runner, bool hasState)
@@ -645,9 +660,36 @@ public class PlayerNetwork : NetworkBehaviour
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    public void RPC_RequestApplyProfile(byte requestedCharacterId, string requestedPlayerName)
+    {
+        if (playerVisuals != null && !playerVisuals.IsValidCharacterId(requestedCharacterId))
+            requestedCharacterId = 0;
+
+        Debug.Log($"[PlayerNetwork] Apply profile requested. RequestedCharacterId={requestedCharacterId}, Name={requestedPlayerName}");
+
+        if (playerVisuals != null && !playerVisuals.IsValidCharacterId(requestedCharacterId))
+        {
+            Debug.LogWarning($"[PlayerNetwork] Invalid CharacterId {requestedCharacterId}. Fallback to CharacterA. Check PlayerVisuals Characters array.");
+            requestedCharacterId = 0;
+        }
+
+        string safeName = (requestedPlayerName ?? "").Trim();
+
+        if (string.IsNullOrWhiteSpace(safeName))
+            safeName = $"Player {SlotIndex + 1}";
+
+        if (safeName.Length > LocalPlayerProfile.MaxNameLength)
+            safeName = safeName.Substring(0, LocalPlayerProfile.MaxNameLength);
+
+        CharacterId = requestedCharacterId;
+        PlayerName = safeName;
+        HasAppliedProfile = true;
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     public void RPC_RequestCharacter(byte requestedCharacterId)
     {
-        if (requestedCharacterId > 1)
+        if (playerVisuals != null && !playerVisuals.IsValidCharacterId(requestedCharacterId))
             return;
 
         CharacterId = requestedCharacterId;
