@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class MatchResultService : MonoBehaviour
@@ -39,14 +40,7 @@ public class MatchResultService : MonoBehaviour
 
     public void SaveResult(long player1Id, long player2Id, long winnerId, int player1Score, int player2Score)
     {
-        SaveResult(new MatchResultRequest
-        {
-            player1Id = player1Id,
-            player2Id = player2Id,
-            winnerId = winnerId,
-            player1Score = Mathf.Clamp(player1Score, 0, 10),
-            player2Score = Mathf.Clamp(player2Score, 0, 10)
-        });
+        SaveResult(CreateBasicRequest(player1Id, player2Id, winnerId, player1Score, player2Score));
     }
 
     public void SaveResult(MatchResultRequest request)
@@ -65,6 +59,8 @@ public class MatchResultService : MonoBehaviour
 
         if (!ValidateResult(request))
             return;
+
+        EnsurePlayerPayload(request);
 
         IsSaving = true;
         LastError = string.Empty;
@@ -128,6 +124,49 @@ public class MatchResultService : MonoBehaviour
         request.player1Score = Mathf.Clamp(request.player1Score, 0, 10);
         request.player2Score = Mathf.Clamp(request.player2Score, 0, 10);
         return true;
+    }
+
+    public static MatchResultRequest CreateBasicRequest(long player1Id, long player2Id, long winnerId, int player1Score, int player2Score)
+    {
+        MatchResultRequest request = new MatchResultRequest
+        {
+            player1Id = player1Id,
+            player2Id = player2Id,
+            winnerId = winnerId,
+            player1Score = Mathf.Clamp(player1Score, 0, 10),
+            player2Score = Mathf.Clamp(player2Score, 0, 10)
+        };
+
+        EnsurePlayerPayload(request);
+        return request;
+    }
+
+    public static void EnsurePlayerPayload(MatchResultRequest request)
+    {
+        if (request == null)
+            return;
+
+        if (request.players != null && request.players.Count == 2)
+            return;
+
+        request.players = new List<MatchPlayerResultRequest>
+        {
+            CreatePlayerResult(request.player1Id, request.winnerId == request.player1Id, request.player1Score),
+            CreatePlayerResult(request.player2Id, request.winnerId == request.player2Id, request.player2Score)
+        };
+    }
+
+    private static MatchPlayerResultRequest CreatePlayerResult(long userId, bool isWinner, int score)
+    {
+        return new MatchPlayerResultRequest
+        {
+            userId = userId,
+            result = isWinner ? "WIN" : "LOSE",
+            score = Mathf.Clamp(score, 0, 10),
+            damageDealt = 0,
+            characterName = string.Empty,
+            augments = new List<MatchPlayerAugmentRequest>()
+        };
     }
 
     private void FailSave(string message)

@@ -13,14 +13,7 @@ public static class BackendMatchReporter
             return;
         }
 
-        MatchResultRequest request = new MatchResultRequest
-        {
-            player1Id = player1Id,
-            player2Id = player2Id,
-            winnerId = winnerId,
-            player1Score = Mathf.Clamp(player1Score, 0, 10),
-            player2Score = Mathf.Clamp(player2Score, 0, 10)
-        };
+        MatchResultRequest request = MatchResultService.CreateBasicRequest(player1Id, player2Id, winnerId, player1Score, player2Score);
 
         BackendApiClient.Instance.SaveMatchResult(request, onSuccess, onError);
     }
