@@ -12046,6 +12046,7 @@ MonoBehaviour:
   - {fileID: 2008097464}
   resetArenaPoolWhenEmpty: 0
   _ActiveArenaIndex: 0
+  _AugmentChooserMask: 0
   enableDebugContextMenu: 1
   _Phase: 0
   _RoundIndex: 0
@@ -24333,7 +24334,7 @@ PrefabInstance:
     - target: {fileID: 144538456661047801, guid: fa9659500a0ee9643a511398b1528982, type: 3}
       propertyPath: highlightObject
       value: 
-      objectReference: {fileID: 465129089}
+      objectReference: {fileID: 0}
     - target: {fileID: 1988013393883703979, guid: fa9659500a0ee9643a511398b1528982, type: 3}
       propertyPath: m_IsActive
       value: 1
@@ -24446,11 +24447,6 @@ PrefabInstance:
 --- !u!224 &465129088 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 6927738555758104777, guid: fa9659500a0ee9643a511398b1528982, type: 3}
-  m_PrefabInstance: {fileID: 465129087}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &465129089 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 1988013393883703979, guid: fa9659500a0ee9643a511398b1528982, type: 3}
   m_PrefabInstance: {fileID: 465129087}
   m_PrefabAsset: {fileID: 0}
 --- !u!114 &465129090 stripped
@@ -48002,7 +47998,6 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 832919383}
-  - {fileID: 2085418688}
   - {fileID: 1316540519}
   - {fileID: 59091397}
   - {fileID: 960552644}
@@ -68952,7 +68947,7 @@ PrefabInstance:
     - target: {fileID: 144538456661047801, guid: fa9659500a0ee9643a511398b1528982, type: 3}
       propertyPath: highlightObject
       value: 
-      objectReference: {fileID: 1375781088}
+      objectReference: {fileID: 0}
     - target: {fileID: 1988013393883703979, guid: fa9659500a0ee9643a511398b1528982, type: 3}
       propertyPath: m_IsActive
       value: 1
@@ -69065,11 +69060,6 @@ PrefabInstance:
 --- !u!224 &1375781087 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 6927738555758104777, guid: fa9659500a0ee9643a511398b1528982, type: 3}
-  m_PrefabInstance: {fileID: 1375781086}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &1375781088 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 1988013393883703979, guid: fa9659500a0ee9643a511398b1528982, type: 3}
   m_PrefabInstance: {fileID: 1375781086}
   m_PrefabAsset: {fileID: 0}
 --- !u!114 &1375781089 stripped
@@ -73356,9 +73346,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AugmentDatabase
   augments:
-  - {fileID: 11400000, guid: 8ec2f014617b1a347839e5d86dc70271, type: 2}
-  - {fileID: 11400000, guid: eeb25193c29cd994da24bd51f7093bed, type: 2}
-  - {fileID: 11400000, guid: 3949a271bced857498b42b863aad11ac, type: 2}
+  - {fileID: 11400000, guid: c4643ec5f34d7c94f9a24db257028eee, type: 2}
+  - {fileID: 11400000, guid: cc5e7b3fabd25854c8ee03ad5deb23e3, type: 2}
+  - {fileID: 11400000, guid: d7a44dd1e774d1442adf92f745ec4c01, type: 2}
+  - {fileID: 11400000, guid: ec4dc2bf23bb74340b7cbad348b0893a, type: 2}
+  - {fileID: 11400000, guid: 1739f9d228c17e44b8eab22e6429d5b5, type: 2}
 --- !u!4 &1442670099
 Transform:
   m_ObjectHideFlags: 0
@@ -88638,11 +88630,6 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: 4409304740365994, guid: 367c6fe1a26480944a9793eb305d824f, type: 3}
   m_PrefabInstance: {fileID: 1764503674}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &1765864878 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 1988013393883703979, guid: fa9659500a0ee9643a511398b1528982, type: 3}
-  m_PrefabInstance: {fileID: 7601567636211404974}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1767176858
 PrefabInstance:
@@ -104448,7 +104435,7 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2085418687}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -104458,11 +104445,11 @@ RectTransform:
   - {fileID: 783842492}
   - {fileID: 787730038}
   - {fileID: 706480322}
-  m_Father: {fileID: 961349166}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 400, y: 300}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1001 &2089202134
@@ -105455,6 +105442,7 @@ MonoBehaviour:
   titlePanel: {fileID: 50725322}
   profilePanel: {fileID: 961349165}
   lobbyPanel: {fileID: 905794683}
+  characterPreviewArea: {fileID: 2085418687}
   playButton: {fileID: 1902713799}
   quitButton: {fileID: 585624343}
   nameInput: {fileID: 832919384}
@@ -107609,7 +107597,7 @@ PrefabInstance:
     - target: {fileID: 144538456661047801, guid: fa9659500a0ee9643a511398b1528982, type: 3}
       propertyPath: highlightObject
       value: 
-      objectReference: {fileID: 1765864878}
+      objectReference: {fileID: 0}
     - target: {fileID: 1988013393883703979, guid: fa9659500a0ee9643a511398b1528982, type: 3}
       propertyPath: m_IsActive
       value: 1
@@ -107729,6 +107717,7 @@ SceneRoots:
   - {fileID: 1916696847}
   - {fileID: 40900766}
   - {fileID: 457853959}
+  - {fileID: 2085418688}
   - {fileID: 2102052171}
   - {fileID: 1693268510}
   - {fileID: 1442670099}

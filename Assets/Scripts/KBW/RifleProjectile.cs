@@ -16,7 +16,14 @@ public class RifleProjectile : NetworkBehaviour
 
     private bool hasInitialized;
 
-    public void Init(NetworkRunner runner, PlayerNetwork owner, Vector3 projectileDirection, float projectileSpeed, int projectileDamage)
+    public void Init(
+    NetworkRunner runner,
+    PlayerNetwork owner,
+    Vector3 projectileDirection,
+    float projectileSpeed,
+    int projectileDamage,
+    float projectileSizeMultiplier = 1f
+)
     {
         direction = projectileDirection.sqrMagnitude > 0.0001f
             ? projectileDirection.normalized
@@ -26,6 +33,10 @@ public class RifleProjectile : NetworkBehaviour
         damage = projectileDamage;
         ownerId = owner != null && owner.Object != null ? owner.Object.Id : default;
         lifeTimer = TickTimer.CreateFromSeconds(runner, lifeSeconds);
+
+        float safeSize = Mathf.Max(0.1f, projectileSizeMultiplier);
+        radius *= safeSize;
+        transform.localScale *= safeSize;
 
         hasInitialized = true;
     }

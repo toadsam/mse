@@ -55,6 +55,14 @@ public class PlayerNetwork : NetworkBehaviour
     [SerializeField] private float projectileSpeed = 35f;
     [SerializeField] private float projectileSpawnForwardOffset = 0.4f;
 
+    [Header("Augment Runtime Stats")]
+    [Networked] public int ProjectileExtraProjectiles { get; private set; }
+    [Networked] public float ProjectileSpreadAngle { get; private set; }
+    [Networked] public float ProjectileSizeMultiplier { get; private set; }
+    [Networked] public float ProjectileSpeedMultiplier { get; private set; }
+    [Networked] public float ProjectileDamageMultiplier { get; private set; }
+    [Networked] public float FireIntervalMultiplier { get; private set; }
+
     [Networked] public NetworkString<_32> PlayerName { get; private set; }
     [Networked] public NetworkBool HasAppliedProfile { get; private set; }
 
@@ -95,6 +103,8 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] private NetworkButtons PreviousButtons { get; set; }
 
     [Networked] public int HitConfirmCount { get; private set; }
+
+    [Networked] public NetworkBool CanSelectAugmentNet { get; private set; }
 
     private int lastAppliedJumpAnimCount = -1;
 
@@ -160,6 +170,13 @@ public class PlayerNetwork : NetworkBehaviour
             kcc.SetLookRotation(LookPitch, LookYaw);
 
         HitConfirmCount = 0;
+
+        ProjectileExtraProjectiles = 0;
+        ProjectileSpreadAngle = 0f;
+        ProjectileSizeMultiplier = 1f;
+        ProjectileSpeedMultiplier = 1f;
+        ProjectileDamageMultiplier = 1f;
+        FireIntervalMultiplier = 1f;
     }
 
     public override void Spawned()
@@ -474,7 +491,8 @@ public class PlayerNetwork : NetworkBehaviour
         if (!FireCooldown.ExpiredOrNotRunning(Runner))
             return;
 
-        FireCooldown = TickTimer.CreateFromSeconds(Runner, rifleFireInterval);
+        float finalFireInterval = rifleFireInterval * Mathf.Max(0.05f, FireIntervalMultiplier);
+        FireCooldown = TickTimer.CreateFromSeconds(Runner, finalFireInterval);
         FireAnimCount++;
 
         GetFireRay(inputAimOrigin, inputAimDirection, out Vector3 aimOrigin, out Vector3 aimDirection);
@@ -518,18 +536,37 @@ public class PlayerNetwork : NetworkBehaviour
 
         Transform activeMuzzle = playerVisuals != null ? playerVisuals.GetActiveMuzzle(CharacterId) : null;
 
-        Runner.Spawn(
-            rifleProjectilePrefab,
-            spawnPos,
-            Quaternion.LookRotation(projectileDir),
-            Object.InputAuthority,
-            (runner, obj) => 
-            {
-                RifleProjectile projectile = obj.GetComponent<RifleProjectile>();
-                if (projectile != null)
-                    projectile.Init(runner, this, projectileDir, projectileSpeed, rifleDamage);
-            }
+        int projectileCount = Mathf.Max(1, 1 + ProjectileExtraProjectiles);
+        float spreadAngle = Mathf.Max(0f, ProjectileSpreadAngle);
+
+        int finalDamage = Mathf.Max(
+            1,
+            Mathf.RoundToInt(rifleDamage * Mathf.Max(0.05f, ProjectileDamageMultiplier))
         );
+
+        float finalSpeed = projectileSpeed * Mathf.Max(0.05f, ProjectileSpeedMultiplier);
+        float finalSize = Mathf.Max(0.1f, ProjectileSizeMultiplier);
+
+        for (int i = 0; i < projectileCount; i++)
+        {
+            Vector3 shotDir = GetSpreadProjectileDirection(projectileDir, i, projectileCount, spreadAngle);
+            Vector3 shotSpawnPos = GetFireOriginPosition() + shotDir * projectileSpawnForwardOffset;
+
+            Debug.DrawRay(shotSpawnPos, shotDir * 5f, Color.yellow, 1.0f);
+
+            Runner.Spawn(
+                rifleProjectilePrefab,
+                shotSpawnPos,
+                Quaternion.LookRotation(shotDir),
+                Object.InputAuthority,
+                (runner, obj) =>
+                {
+                    RifleProjectile projectile = obj.GetComponent<RifleProjectile>();
+                    if (projectile != null)
+                        projectile.Init(runner, this, shotDir, finalSpeed, finalDamage, finalSize);
+                }
+            );
+        }
     }
 
     public void AddHitConfirm()
@@ -613,7 +650,7 @@ public class PlayerNetwork : NetworkBehaviour
         HitConfirmCount = 0;
     }
 
-    public void SetOfferedAugments(int a0, int a1, int a2)
+    public void SetOfferedAugments(int a0, int a1, int a2, bool canSelect)
     {
         if (!HasStateAuthority) return;
 
@@ -622,7 +659,8 @@ public class PlayerNetwork : NetworkBehaviour
         OfferedAugmentId2 = a2;
 
         SelectedAugmentId = -1;
-        HasSelectedAugmentNet = false;
+        CanSelectAugmentNet = canSelect;
+        HasSelectedAugmentNet = !canSelect;
     }
 
     public int GetOfferedAugmentId(int slotIndex)
@@ -638,25 +676,48 @@ public class PlayerNetwork : NetworkBehaviour
 
     public void ApplyAugment(AugmentDefinition def)
     {
-        if (!HasStateAuthority || def == null) return;
+        if (!HasStateAuthority || def == null)
+            return;
 
-        switch (def.augmentType)
+        ProjectileExtraProjectiles += Mathf.Max(0, def.extraProjectiles);
+
+        if (def.spreadAngle > 0f)
+            ProjectileSpreadAngle = Mathf.Max(ProjectileSpreadAngle, def.spreadAngle);
+
+        ProjectileSizeMultiplier *= Mathf.Max(0.05f, def.projectileSizeMultiplier);
+        ProjectileSpeedMultiplier *= Mathf.Max(0.05f, def.projectileSpeedMultiplier);
+        ProjectileDamageMultiplier *= Mathf.Max(0.05f, def.damageMultiplier);
+        FireIntervalMultiplier *= Mathf.Max(0.05f, def.fireIntervalMultiplier);
+
+        Debug.Log($"[Augment] Slot {SlotIndex} applied {def.displayName}");
+    }
+
+    private Vector3 GetSpreadProjectileDirection(Vector3 centerDirection, int index, int count, float spreadAngle)
+    {
+        if (centerDirection.sqrMagnitude < 0.0001f)
+            centerDirection = transform.forward;
+
+        centerDirection.Normalize();
+
+        if (spreadAngle <= 0f)
+            return centerDirection;
+
+        float yawOffset;
+
+        if (count <= 1)
         {
-            case AugmentType.MoveSpeed:
-                MoveSpeedBonus += def.value;
-                break;
-
-            case AugmentType.DashDistance:
-                DashDistanceBonus += def.value;
-                break;
-
-            case AugmentType.DashCooldown:
-                if (DashCooldownMultiplier <= 0f)
-                    DashCooldownMultiplier = 1f;
-
-                DashCooldownMultiplier *= def.value;
-                break;
+            // Rapid Barrel처럼 단발인데 퍼짐만 있는 경우
+            yawOffset = Random.Range(-spreadAngle * 0.5f, spreadAngle * 0.5f);
         }
+        else
+        {
+            // Multi Shot처럼 여러 발이면 균등 분산
+            float t = count == 1 ? 0.5f : index / (float)(count - 1);
+            yawOffset = Mathf.Lerp(-spreadAngle * 0.5f, spreadAngle * 0.5f, t);
+        }
+
+        Quaternion yawRotation = Quaternion.AngleAxis(yawOffset, Vector3.up);
+        return (yawRotation * centerDirection).normalized;
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]

@@ -9,6 +9,10 @@ public class MainMenuFlowUI : MonoBehaviour
     [SerializeField] private GameObject profilePanel;
     [SerializeField] private GameObject lobbyPanel;
 
+    [Header("World Preview")]
+    [Tooltip("Canvas 밖 월드에 배치한 캐릭터 프리뷰 전체 루트입니다.")]
+    [SerializeField] private GameObject characterPreviewArea;
+
     [Header("Title")]
     [SerializeField] private Button playButton;
     [SerializeField] private Button quitButton;
@@ -62,6 +66,8 @@ public class MainMenuFlowUI : MonoBehaviour
         SetPanel(titlePanel, true);
         SetPanel(profilePanel, false);
         SetPanel(lobbyPanel, false);
+
+        SetPanel(characterPreviewArea, false);
     }
 
     private void ShowProfile()
@@ -69,6 +75,9 @@ public class MainMenuFlowUI : MonoBehaviour
         SetPanel(titlePanel, false);
         SetPanel(profilePanel, true);
         SetPanel(lobbyPanel, false);
+
+        SetPanel(characterPreviewArea, true);
+        RefreshCharacterPreview();
 
         if (statusText != null)
             statusText.text = "";
@@ -84,6 +93,8 @@ public class MainMenuFlowUI : MonoBehaviour
         SetPanel(titlePanel, false);
         SetPanel(profilePanel, false);
         SetPanel(lobbyPanel, true);
+
+        SetPanel(characterPreviewArea, false);
     }
 
     private void SelectPreviousCharacter()

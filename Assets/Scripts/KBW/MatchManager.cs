@@ -26,8 +26,11 @@ public class MatchManager : NetworkBehaviour
     [SerializeField] private bool resetArenaPoolWhenEmpty = false;
 
     [Networked] public int ActiveArenaIndex { get; private set; }
+    [Networked] public int AugmentChooserMask { get; private set; }
 
     private readonly List<int> unusedArenaIndices = new();
+
+    private readonly HashSet<int> usedOfferedAugmentIds = new();
 
     [Header("Debug")]
     [SerializeField] private bool enableDebugContextMenu = true;
@@ -130,8 +133,9 @@ public class MatchManager : NetworkBehaviour
         RoundWinnerSlot = -1;
         MatchWinnerSlot = -1;
 
-        InitializeArenaPool();
+        usedOfferedAugmentIds.Clear();
 
+        InitializeArenaPool();
         EnterAugmentPhase();
     }
 
@@ -176,13 +180,9 @@ public class MatchManager : NetworkBehaviour
         if (!HasStateAuthority)
             return;
 
-        RoundWinnerSlot = -1;
         PhaseTimer = default;
 
-        ChooseArenaForRound();
-        ResetAllPlayersForRound();
-
-        AssignAugmentsToAllPlayers();
+        AssignAugmentsByRoundRule();
 
         Phase = MatchPhase.ChoosingAugment;
     }
@@ -194,6 +194,7 @@ public class MatchManager : NetworkBehaviour
 
         Phase = MatchPhase.RoundIntro;
 
+        ChooseArenaForRound();       // 이 줄 추가
         ResetAllPlayersForRound();
 
         PhaseTimer = TickTimer.CreateFromSeconds(Runner, roundIntroSeconds);
@@ -329,7 +330,7 @@ public class MatchManager : NetworkBehaviour
         EnterRoundResultPhase();
     }
 
-    private void AssignAugmentsToAllPlayers()
+    private void AssignAugmentsByRoundRule()
     {
         if (augmentDatabase == null)
         {
@@ -339,18 +340,54 @@ public class MatchManager : NetworkBehaviour
 
         List<PlayerNetwork> players = GetAllPlayers();
 
+        AugmentChooserMask = 0;
+
         foreach (PlayerNetwork player in players)
         {
-            List<AugmentDefinition> draws = augmentDatabase.DrawRandomUnique(3);
+            bool canChoose = ShouldPlayerChooseAugment(player);
 
-            if (draws.Count < 3)
+            if (canChoose)
             {
-                Debug.LogError("[MatchManager] Not enough augments in AugmentDatabase.");
-                continue;
-            }
+                AugmentChooserMask |= 1 << player.SlotIndex;
 
-            player.SetOfferedAugments(draws[0].id, draws[1].id, draws[2].id);
+                List<AugmentDefinition> draws =
+                    augmentDatabase.DrawRandomUniqueExcluding(3, usedOfferedAugmentIds);
+
+                if (draws.Count < 3)
+                {
+                    Debug.LogError("[MatchManager] Not enough unique augments.");
+                    player.SetOfferedAugments(-1, -1, -1, false);
+                    continue;
+                }
+
+                usedOfferedAugmentIds.Add(draws[0].id);
+                usedOfferedAugmentIds.Add(draws[1].id);
+                usedOfferedAugmentIds.Add(draws[2].id);
+
+                player.SetOfferedAugments(draws[0].id, draws[1].id, draws[2].id, true);
+            }
+            else
+            {
+                player.SetOfferedAugments(-1, -1, -1, false);
+            }
         }
+    }
+
+    private bool ShouldPlayerChooseAugment(PlayerNetwork player)
+    {
+        if (player == null)
+            return false;
+
+        // 첫 라운드 시작 전에는 둘 다 선택
+        if (RoundIndex == 1 && Player0Wins == 0 && Player1Wins == 0)
+            return true;
+
+        // 이후에는 직전 라운드 패자만 선택
+        if (RoundWinnerSlot < 0)
+            return false;
+
+        int loserSlot = RoundWinnerSlot == 0 ? 1 : 0;
+        return player.SlotIndex == loserSlot;
     }
 
     private List<PlayerNetwork> GetAllPlayers()
