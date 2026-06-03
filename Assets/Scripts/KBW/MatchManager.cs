@@ -230,7 +230,8 @@ public class MatchManager : NetworkBehaviour
 
         ApplyActiveArenaVisuals();
 
-        Debug.Log($"[MatchManager] Round {RoundIndex} Arena: {ActiveArenaIndex}");
+        Debug.Log($"[MatchManager] Round {RoundIndex} Arena: {ActiveArenaIndex}, Name: {arenaZones[ActiveArenaIndex].name}"
+);
     }
 
     public void EnterPlayingPhase()
@@ -450,6 +451,12 @@ public class MatchManager : NetworkBehaviour
             Debug.Log($"[MatchManager] Reset Player Slot {player.SlotIndex} -> Pos {pos}, Yaw {yaw}");
 
             player.ResetForRound(pos, yaw);
+
+            Debug.Log(
+                $"[MatchManager] After Reset Slot {player.SlotIndex} / Transform Pos {player.transform.position}"
+            );
+
+
         }
     }
 

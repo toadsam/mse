@@ -1,6 +1,7 @@
 using Fusion;
 using Fusion.Addons.SimpleKCC;
 using UnityEngine;
+using System.Collections.Generic;
 
 [RequireComponent(typeof(NetworkObject))]
 [RequireComponent(typeof(SimpleKCC))]
@@ -22,12 +23,23 @@ public class PlayerNetwork : NetworkBehaviour
     [SerializeField] private LayerMask rifleHitMask = ~0;
     [SerializeField] private Transform fireOrigin;
     [SerializeField] private bool drawFireDebugRay = true;
+
+    [Header("Debug Augment Test")]
+    [SerializeField] private AugmentDatabase debugAugmentDatabase;
+    [SerializeField] private int debugAugmentId = 1;
     [Networked] public NetworkBool IsFiringNet { get; set; }
 
     [Networked] private TickTimer FireCooldown { get; set; }
     [Networked] public int FireAnimCount { get; set; }
 
     private int lastAppliedFireAnimCount = -1;
+
+    [Header("Accessory Combat")]
+    [SerializeField] private LayerMask accessoryHitMask = ~0;
+    [SerializeField] private float orbitMeleeHitRadius = 0.55f;
+    [SerializeField] private float accessoryVisualHeight = 1.1f;
+
+    [Networked] private TickTimer OrbitMeleeDamageTimer { get; set; }
 
     [Header("Jump / KCC")]
     [SerializeField] private float kccGravity = -25f;
@@ -55,6 +67,12 @@ public class PlayerNetwork : NetworkBehaviour
     [SerializeField] private float projectileSpeed = 35f;
     [SerializeField] private float projectileSpawnForwardOffset = 0.4f;
 
+    [Header("Active Item Prefabs")]
+    [SerializeField] private NetworkPrefabRef throwableItemPrefab;
+    [SerializeField] private NetworkPrefabRef throwingAxePrefab;
+    [SerializeField] private NetworkPrefabRef explosionFxPrefab;
+    [SerializeField] private NetworkPrefabRef smokeZonePrefab;
+
     [Header("Augment Runtime Stats")]
     [Networked] public int ProjectileExtraProjectiles { get; private set; }
     [Networked] public float ProjectileSpreadAngle { get; private set; }
@@ -63,8 +81,51 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public float ProjectileDamageMultiplier { get; private set; }
     [Networked] public float FireIntervalMultiplier { get; private set; }
 
+    [Header("Projectile Behavior Runtime")]
+    [Networked] public int ProjectileBounceCount { get; private set; }
+    [Networked] public int ProjectilePierceCount { get; private set; }
+    [Networked] public NetworkBool ProjectileTargetBounce { get; private set; }
+    [Networked] public NetworkBool ProjectileGrowDamageByDistance { get; private set; }
+    [Networked] public float ProjectileMaxGrowDamageMultiplier { get; private set; }
+
+    [Header("Status / Area Runtime")]
+    [Networked] public NetworkBool ProjectileAppliesPoison { get; private set; }
+    [Networked] public int ProjectilePoisonDamagePerTick { get; private set; }
+    [Networked] public float ProjectilePoisonDuration { get; private set; }
+
+    [Networked] public NetworkBool ProjectileExplodesOnImpact { get; private set; }
+    [Networked] public float ProjectileExplosionRadius { get; private set; }
+    [Networked] public float ProjectileExplosionDamageMultiplier { get; private set; }
+
+    [Networked] public NetworkBool ProjectileCreatesToxicCloud { get; private set; }
+    [Networked] public float ProjectileCloudRadius { get; private set; }
+    [Networked] public float ProjectileCloudDuration { get; private set; }
+
+    [Header("Accessory Runtime")]
+    [Networked] public int OrbitShieldCount { get; private set; }
+    [Networked] public int OrbitMeleeCount { get; private set; }
+    [Networked] public int DropMeleeCount { get; private set; }
+
+    [Networked] public float AccessoryRadius { get; private set; }
+    [Networked] public float AccessoryRotateSpeed { get; private set; }
+    [Networked] public int AccessoryDamage { get; private set; }
+    [Networked] public float AccessoryHitInterval { get; private set; }
+    [Networked] public float ShieldBlockAngle { get; private set; }
+
+    [Header("Active Item Runtime")]
+    [Networked] public ActiveItemType CurrentActiveItem { get; private set; }
+    [Networked] public int ActiveItemUsesRemaining { get; private set; }
+    [Networked] public int ActiveItemUsesPerRound { get; private set; }
+    [Networked] public int MedKitHealAmount { get; private set; }
+
     [Networked] public NetworkString<_32> PlayerName { get; private set; }
     [Networked] public NetworkBool HasAppliedProfile { get; private set; }
+
+    [Networked] private int RoundTeleportSeq { get; set; }
+    [Networked] private Vector3 RoundTeleportPosition { get; set; }
+    [Networked] private float RoundTeleportYaw { get; set; }
+
+    private int lastAppliedRoundTeleportSeq = -1;
 
     private SimpleKCC kcc;
     private Rigidbody rb;
@@ -107,6 +168,9 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public NetworkBool CanSelectAugmentNet { get; private set; }
 
     private int lastAppliedJumpAnimCount = -1;
+
+    private int pendingRoundTeleportFrames;
+    private const int RoundTeleportApplyFrames = 3;
 
     private void Awake()
     {
@@ -177,6 +241,39 @@ public class PlayerNetwork : NetworkBehaviour
         ProjectileSpeedMultiplier = 1f;
         ProjectileDamageMultiplier = 1f;
         FireIntervalMultiplier = 1f;
+
+        ProjectileBounceCount = 0;
+        ProjectilePierceCount = 0;
+        ProjectileTargetBounce = false;
+        ProjectileGrowDamageByDistance = false;
+        ProjectileMaxGrowDamageMultiplier = 1f;
+
+        ProjectileAppliesPoison = false;
+        ProjectilePoisonDamagePerTick = 0;
+        ProjectilePoisonDuration = 0f;
+
+        ProjectileExplodesOnImpact = false;
+        ProjectileExplosionRadius = 0f;
+        ProjectileExplosionDamageMultiplier = 0f;
+
+        ProjectileCreatesToxicCloud = false;
+        ProjectileCloudRadius = 0f;
+        ProjectileCloudDuration = 0f;
+
+        OrbitShieldCount = 0;
+        OrbitMeleeCount = 0;
+        DropMeleeCount = 0;
+        AccessoryRadius = 1.4f;
+        AccessoryRotateSpeed = 180f;
+        AccessoryDamage = 0;
+        AccessoryHitInterval = 0.7f;
+        ShieldBlockAngle = 75f;
+        OrbitMeleeDamageTimer = default;
+
+        CurrentActiveItem = ActiveItemType.MedKit;
+        ActiveItemUsesPerRound = 1;
+        ActiveItemUsesRemaining = 1;
+        MedKitHealAmount = 30;
     }
 
     public override void Spawned()
@@ -201,6 +298,7 @@ public class PlayerNetwork : NetworkBehaviour
 
         playerVisuals?.Refresh(CharacterId);
 
+        lastAppliedRoundTeleportSeq = RoundTeleportSeq;
         lastAppliedJumpAnimCount = JumpAnimCount;
         lastAppliedFireAnimCount = FireAnimCount;
 
@@ -227,6 +325,8 @@ public class PlayerNetwork : NetworkBehaviour
 
     public override void Render()
     {
+        ApplyPendingRoundTeleport();
+
         playerVisuals?.Refresh(CharacterId);
         RefreshAnimatorReference();
         UpdateAnimator();
@@ -234,11 +334,14 @@ public class PlayerNetwork : NetworkBehaviour
 
     public override void FixedUpdateNetwork()
     {
+        ApplyPendingRoundTeleport();
+
         if (!GetInput(out GameplayInput input))
             return;
 
         MatchManager match = MatchManager.Instance;
-        if (match != null && match.CurrentPhase == MatchPhase.ChoosingAugment)
+
+        if (match != null && match.CurrentPhase != MatchPhase.Playing)
         {
             MoveX = 0f;
             MoveY = 0f;
@@ -246,7 +349,10 @@ public class PlayerNetwork : NetworkBehaviour
             MoveState = 0;
             AirState = 0;
             VerticalSpeedForAnim = 0f;
-            IsGroundedNet = kcc != null && kcc.IsGrounded;
+            IsFiringNet = false;
+
+            if (kcc != null)
+                IsGroundedNet = kcc.IsGrounded;
 
             PreviousButtons = input.Buttons;
             return;
@@ -361,6 +467,8 @@ public class PlayerNetwork : NetworkBehaviour
         if (input.Buttons.IsSet(EInputButton.AltFire))
             HoldAltFire();
 
+
+        UpdateAccessoryCombat();
         PreviousButtons = input.Buttons;
     }
 
@@ -563,7 +671,27 @@ public class PlayerNetwork : NetworkBehaviour
                 {
                     RifleProjectile projectile = obj.GetComponent<RifleProjectile>();
                     if (projectile != null)
-                        projectile.Init(runner, this, shotDir, finalSpeed, finalDamage, finalSize);
+                        projectile.Init(runner,
+                                        this,
+                                        shotDir,
+                                        finalSpeed,
+                                        finalDamage,
+                                        finalSize,
+                                        ProjectileBounceCount,
+                                        ProjectilePierceCount,
+                                        ProjectileTargetBounce,
+                                        ProjectileGrowDamageByDistance,
+                                        ProjectileMaxGrowDamageMultiplier,
+                                        ProjectileExplodesOnImpact,
+                                        ProjectileExplosionRadius,
+                                        ProjectileExplosionDamageMultiplier,
+                                        ProjectileAppliesPoison,
+                                        ProjectilePoisonDamagePerTick,
+                                        ProjectilePoisonDuration,
+                                        ProjectileCreatesToxicCloud,
+                                        ProjectileCloudRadius,
+                                        ProjectileCloudDuration
+                                    );
                 }
             );
         }
@@ -579,7 +707,45 @@ public class PlayerNetwork : NetworkBehaviour
 
     private void UseAbility()
     {
-        // 나중에 캐릭터별 능력 연결
+        if (!HasStateAuthority)
+            return;
+
+        MatchManager match = MatchManager.Instance;
+        if (match == null || match.CurrentPhase != MatchPhase.Playing)
+            return;
+
+        if (IsDead)
+            return;
+
+        if (ActiveItemUsesRemaining <= 0)
+            return;
+
+        switch (CurrentActiveItem)
+        {
+            case ActiveItemType.MedKit:
+                UseMedKit();
+                break;
+
+            case ActiveItemType.Grenade:
+                ThrowGrenade();
+                break;
+
+            case ActiveItemType.SmokeBomb:
+                ThrowSmokeBomb();
+                break;
+
+            case ActiveItemType.ThrowingAxe:
+                ThrowAxe();
+                break;
+        }
+    }
+    private void UseMedKit()
+    {
+        if (playerHealth == null)
+            return;
+
+        if (playerHealth.Heal(MedKitHealAmount))
+            ActiveItemUsesRemaining--;
     }
 
     private void Reload()
@@ -607,16 +773,11 @@ public class PlayerNetwork : NetworkBehaviour
         if (!HasStateAuthority)
             return;
 
-        if (kcc != null)
-        {
-            kcc.SetPosition(spawnPosition);
-            kcc.SetLookRotation(0f, yaw);
-        }
-        else
-        {
-            transform.position = spawnPosition;
-            transform.rotation = Quaternion.Euler(0f, yaw, 0f);
-        }
+        RoundTeleportPosition = spawnPosition;
+        RoundTeleportYaw = yaw;
+        RoundTeleportSeq++;
+
+        ApplyRoundTeleport(spawnPosition, yaw);
 
         LookPitch = 0f;
         LookYaw = yaw;
@@ -640,14 +801,15 @@ public class PlayerNetwork : NetworkBehaviour
         DashActiveTimer = default;
         DashDirX = 0f;
         DashDirZ = 0f;
+
         FireCooldown = default;
         FireAnimCount = 0;
 
         PreviousButtons = default;
 
-        FireCooldown = default;
-        FireAnimCount = 0;
         HitConfirmCount = 0;
+        ActiveItemUsesRemaining = ActiveItemUsesPerRound;
+        OrbitMeleeDamageTimer = default;
     }
 
     public void SetOfferedAugments(int a0, int a1, int a2, bool canSelect)
@@ -689,6 +851,94 @@ public class PlayerNetwork : NetworkBehaviour
         ProjectileDamageMultiplier *= Mathf.Max(0.05f, def.damageMultiplier);
         FireIntervalMultiplier *= Mathf.Max(0.05f, def.fireIntervalMultiplier);
 
+        ProjectileBounceCount += Mathf.Max(0, def.bounceCountBonus);
+        ProjectilePierceCount += Mathf.Max(0, def.pierceCountBonus);
+
+        if (def.targetBounce)
+            ProjectileTargetBounce = true;
+
+        if (def.growDamageByDistance)
+        {
+            ProjectileGrowDamageByDistance = true;
+            ProjectileMaxGrowDamageMultiplier = Mathf.Max(
+                ProjectileMaxGrowDamageMultiplier,
+                def.maxGrowDamageMultiplier
+            );
+        }
+
+        if (def.appliesPoison)
+        {
+            ProjectileAppliesPoison = true;
+            ProjectilePoisonDamagePerTick = Mathf.Max(ProjectilePoisonDamagePerTick, def.poisonDamagePerTick);
+            ProjectilePoisonDuration = Mathf.Max(ProjectilePoisonDuration, def.poisonDuration);
+        }
+
+        if (def.explodesOnImpact)
+        {
+            ProjectileExplodesOnImpact = true;
+            ProjectileExplosionRadius = Mathf.Max(ProjectileExplosionRadius, def.explosionRadius);
+            ProjectileExplosionDamageMultiplier = Mathf.Max(
+                ProjectileExplosionDamageMultiplier,
+                def.explosionDamageMultiplier
+            );
+        }
+
+        if (def.createsToxicCloud)
+        {
+            ProjectileCreatesToxicCloud = true;
+            ProjectileCloudRadius = Mathf.Max(ProjectileCloudRadius, def.cloudRadius);
+            ProjectileCloudDuration = Mathf.Max(ProjectileCloudDuration, def.cloudDuration);
+
+            ProjectilePoisonDamagePerTick = Mathf.Max(
+                ProjectilePoisonDamagePerTick,
+                def.poisonDamagePerTick
+            );
+
+            ProjectilePoisonDuration = Mathf.Max(
+                ProjectilePoisonDuration,
+                def.poisonDuration > 0f ? def.poisonDuration : 1.25f
+            );
+        }
+
+        switch (def.accessoryType)
+        {
+            case AugmentAccessoryType.OrbitShield:
+                OrbitShieldCount += Mathf.Max(1, def.accessoryCountBonus);
+                ShieldBlockAngle = Mathf.Max(ShieldBlockAngle, def.shieldBlockAngle);
+                AccessoryRadius = Mathf.Max(AccessoryRadius, def.accessoryRadius);
+                AccessoryRotateSpeed = Mathf.Max(AccessoryRotateSpeed, def.accessoryRotateSpeed);
+                break;
+
+            case AugmentAccessoryType.OrbitMelee:
+                OrbitMeleeCount += Mathf.Max(1, def.accessoryCountBonus);
+                AccessoryDamage = Mathf.Max(AccessoryDamage, def.accessoryDamage);
+                AccessoryRadius = Mathf.Max(AccessoryRadius, def.accessoryRadius);
+                AccessoryRotateSpeed = Mathf.Max(AccessoryRotateSpeed, def.accessoryRotateSpeed);
+                AccessoryHitInterval = Mathf.Min(
+                    AccessoryHitInterval <= 0f ? def.accessoryHitInterval : AccessoryHitInterval,
+                    def.accessoryHitInterval
+                );
+                break;
+
+            case AugmentAccessoryType.DropMelee:
+                DropMeleeCount += Mathf.Max(1, def.accessoryCountBonus);
+                AccessoryDamage = Mathf.Max(AccessoryDamage, def.accessoryDamage);
+                AccessoryRadius = Mathf.Max(AccessoryRadius, def.accessoryRadius);
+                AccessoryHitInterval = Mathf.Min(
+                    AccessoryHitInterval <= 0f ? def.accessoryHitInterval : AccessoryHitInterval,
+                    def.accessoryHitInterval
+                );
+                break;
+        }
+
+        if (def.replacesActiveItem)
+        {
+            CurrentActiveItem = def.activeItemType;
+            ActiveItemUsesPerRound = Mathf.Max(1, def.activeItemUsesPerRound);
+            ActiveItemUsesRemaining = ActiveItemUsesPerRound;
+            MedKitHealAmount = Mathf.Max(MedKitHealAmount, def.medKitHealAmount);
+        }
+
         Debug.Log($"[Augment] Slot {SlotIndex} applied {def.displayName}");
     }
 
@@ -720,6 +970,124 @@ public class PlayerNetwork : NetworkBehaviour
         return (yawRotation * centerDirection).normalized;
     }
 
+    private void ThrowGrenade()
+    {
+        ThrowItem(ThrowableItemKind.Grenade);
+    }
+
+    private void ThrowSmokeBomb()
+    {
+        ThrowItem(ThrowableItemKind.SmokeBomb);
+    }
+
+    private void ThrowItem(ThrowableItemKind kind)
+    {
+        if (!HasStateAuthority)
+            return;
+
+        if (!throwableItemPrefab.IsValid)
+        {
+            Debug.LogWarning("[PlayerNetwork] Throwable item prefab is not assigned.");
+            return;
+        }
+
+        Vector3 forward = GetAimDirection();
+        forward.y = 0f;
+
+        if (forward.sqrMagnitude < 0.0001f)
+            forward = Quaternion.Euler(0f, LookYaw, 0f) * Vector3.forward;
+
+        forward.Normalize();
+
+        Vector3 spawnPosition =
+            GetFireOriginPosition() +
+            forward * 0.75f +
+            Vector3.up * 0.25f;
+
+        NetworkObject spawned = Runner.Spawn(
+            throwableItemPrefab,
+            spawnPosition,
+            Quaternion.LookRotation(forward),
+            Object.InputAuthority,
+            (runner, obj) =>
+            {
+                ThrowableItemProjectile item = obj.GetComponent<ThrowableItemProjectile>();
+                if (item != null)
+                {
+                    item.Init(
+                        runner,
+                        this,
+                        kind,
+                        forward,
+                        explosionFxPrefab,
+                        smokeZonePrefab
+                    );
+                }
+            }
+        );
+
+        if (spawned != null)
+            ActiveItemUsesRemaining--;
+    }
+
+    private void ThrowAxe()
+    {
+        if (!HasStateAuthority)
+            return;
+
+        if (!throwingAxePrefab.IsValid)
+        {
+            Debug.LogWarning("[PlayerNetwork] Throwing axe prefab is not assigned.");
+            return;
+        }
+
+        if (ActiveItemUsesRemaining <= 0)
+            return;
+
+        Vector3 forward = GetAimDirection();
+        forward.y = 0f;
+
+        if (forward.sqrMagnitude < 0.0001f)
+            forward = Quaternion.Euler(0f, LookYaw, 0f) * Vector3.forward;
+
+        forward.Normalize();
+
+        Vector3 spawnPosition =
+            GetFireOriginPosition() +
+            forward * 0.75f +
+            Vector3.up * 0.25f;
+
+        NetworkObject spawned = Runner.Spawn(
+            throwingAxePrefab,
+            spawnPosition,
+            Quaternion.LookRotation(forward),
+            Object.InputAuthority,
+            (runner, obj) =>
+            {
+                ThrowingAxeProjectile axe = obj.GetComponent<ThrowingAxeProjectile>();
+                if (axe != null)
+                    axe.Init(runner, this, forward);
+            }
+        );
+
+        if (spawned != null)
+        {
+            // Throwing Axe는 소모 횟수가 아니라 “현재 손에 있는지”를 나타냅니다.
+            ActiveItemUsesRemaining = 0;
+        }
+    }
+
+    public void RestoreThrowingAxe()
+    {
+        if (!HasStateAuthority)
+            return;
+
+        if (CurrentActiveItem != ActiveItemType.ThrowingAxe)
+            return;
+
+        ActiveItemUsesRemaining = 1;
+    }
+
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     public void RPC_RequestApplyProfile(byte requestedCharacterId, string requestedPlayerName)
     {
@@ -745,6 +1113,161 @@ public class PlayerNetwork : NetworkBehaviour
         CharacterId = requestedCharacterId;
         PlayerName = safeName;
         HasAppliedProfile = true;
+    }
+
+    public Vector3 GetOrbitAccessoryPosition(int index, int count, float radius, float height)
+    {
+        Vector3 dir = GetOrbitAccessoryDirection(index, count);
+        Vector3 center = transform.position + Vector3.up * height;
+
+        return center + dir * Mathf.Max(0.1f, radius);
+    }
+
+    public Vector3 GetOrbitAccessoryDirection(int index, int count)
+    {
+        int safeCount = Mathf.Max(1, count);
+
+        float baseAngle = GetAccessoryOrbitAngle();
+        float offset = 360f * index / safeCount;
+
+        Quaternion rot = Quaternion.Euler(0f, baseAngle + offset, 0f);
+        return rot * Vector3.forward;
+    }
+
+    private float GetAccessoryOrbitAngle()
+    {
+        float time = Runner != null
+            ? (float)Runner.SimulationTime
+            : Time.time;
+
+        return time * Mathf.Max(1f, AccessoryRotateSpeed);
+    }
+
+    public bool TryBlockProjectile(Vector3 projectilePosition, Vector3 projectileDirection)
+    {
+        if (!HasStateAuthority)
+            return false;
+
+        if (OrbitShieldCount <= 0)
+            return false;
+
+        if (IsDead || playerHealth == null || playerHealth.IsDead)
+            return false;
+
+        Vector3 toProjectile = projectilePosition - transform.position;
+        toProjectile.y = 0f;
+
+        if (toProjectile.sqrMagnitude < 0.0001f)
+            return false;
+
+        toProjectile.Normalize();
+
+        int shieldCount = Mathf.Max(1, OrbitShieldCount);
+
+        for (int i = 0; i < shieldCount; i++)
+        {
+            Vector3 shieldDir = GetOrbitAccessoryDirection(i, shieldCount);
+            float angle = Vector3.Angle(shieldDir, toProjectile);
+
+            if (angle <= ShieldBlockAngle * 0.5f)
+            {
+                Debug.Log($"[Shield] Slot {SlotIndex} blocked projectile.");
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void UpdateAccessoryCombat()
+    {
+        if (!HasStateAuthority)
+            return;
+
+        if (MatchManager.Instance == null ||
+            MatchManager.Instance.CurrentPhase != MatchPhase.Playing)
+        {
+            return;
+        }
+
+        if (IsDead || playerHealth == null || playerHealth.IsDead)
+            return;
+
+        UpdateOrbitMeleeDamage();
+    }
+
+    private void UpdateOrbitMeleeDamage()
+    {
+        if (OrbitMeleeCount <= 0)
+            return;
+
+        if (AccessoryDamage <= 0)
+            return;
+
+        if (!OrbitMeleeDamageTimer.ExpiredOrNotRunning(Runner))
+            return;
+
+        OrbitMeleeDamageTimer = TickTimer.CreateFromSeconds(
+            Runner,
+            Mathf.Max(0.1f, AccessoryHitInterval)
+        );
+
+        int meleeCount = Mathf.Max(1, OrbitMeleeCount);
+        HashSet<NetworkId> damagedPlayers = new HashSet<NetworkId>();
+        HashSet<DummyTargetHealth> damagedDummies = new HashSet<DummyTargetHealth>();
+
+        for (int i = 0; i < meleeCount; i++)
+        {
+            Vector3 weaponPosition = GetOrbitAccessoryPosition(
+                i,
+                meleeCount,
+                AccessoryRadius,
+                accessoryVisualHeight
+            );
+
+            Collider[] hits = Physics.OverlapSphere(
+                weaponPosition,
+                orbitMeleeHitRadius,
+                accessoryHitMask,
+                QueryTriggerInteraction.Ignore
+            );
+
+            foreach (Collider col in hits)
+            {
+                PlayerNetwork targetPlayer = col.GetComponentInParent<PlayerNetwork>();
+
+                if (targetPlayer != null && targetPlayer.Object != null)
+                {
+                    if (targetPlayer == this)
+                        continue;
+
+                    NetworkId targetId = targetPlayer.Object.Id;
+
+                    if (damagedPlayers.Contains(targetId))
+                        continue;
+
+                    damagedPlayers.Add(targetId);
+
+                    PlayerHealth health = targetPlayer.Health;
+                    if (health != null)
+                    {
+                        bool applied = health.TakeDamage(AccessoryDamage, this);
+
+                        if (applied)
+                            AddHitConfirm();
+                    }
+
+                    continue;
+                }
+
+                DummyTargetHealth dummy = col.GetComponentInParent<DummyTargetHealth>();
+                if (dummy != null && !damagedDummies.Contains(dummy))
+                {
+                    damagedDummies.Add(dummy);
+                    dummy.TakeDamage(AccessoryDamage);
+                }
+            }
+        }
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
@@ -782,5 +1305,91 @@ public class PlayerNetwork : NetworkBehaviour
         HasSelectedAugmentNet = true;
 
         match.NotifyPlayerSelectedAugment(this);
+    }
+
+    [ContextMenu("Debug/Apply Debug Augment")]
+    private void DebugApplyAugment()
+    {
+        if (!Application.isPlaying)
+            return;
+
+        if (!HasStateAuthority)
+        {
+            Debug.LogWarning("[Debug] Only StateAuthority can apply augments.");
+            return;
+        }
+
+        if (debugAugmentDatabase == null)
+        {
+            MatchManager match = MatchManager.Instance;
+            if (match != null)
+            {
+                AugmentDefinition fromMatch = match.GetAugmentById(debugAugmentId);
+                if (fromMatch != null)
+                {
+                    ApplyAugment(fromMatch);
+                    Debug.Log($"[Debug] Applied augment id {debugAugmentId}");
+                    return;
+                }
+            }
+
+            Debug.LogWarning("[Debug] DebugAugmentDatabase is not assigned.");
+            return;
+        }
+
+        AugmentDefinition def = debugAugmentDatabase.GetById(debugAugmentId);
+        if (def == null)
+        {
+            Debug.LogWarning($"[Debug] Augment id {debugAugmentId} not found.");
+            return;
+        }
+
+        ApplyAugment(def);
+        Debug.Log($"[Debug] Applied augment: {def.displayName}");
+    }
+
+    private void ApplyPendingRoundTeleport()
+    {
+        if (RoundTeleportSeq != lastAppliedRoundTeleportSeq)
+        {
+            lastAppliedRoundTeleportSeq = RoundTeleportSeq;
+            pendingRoundTeleportFrames = RoundTeleportApplyFrames;
+
+            Debug.Log(
+                $"[PlayerNetwork] Received Round Teleport Slot {SlotIndex} -> {RoundTeleportPosition} " +
+                $"StateAuthority={HasStateAuthority}, InputAuthority={HasInputAuthority}"
+            );
+        }
+
+        if (pendingRoundTeleportFrames <= 0)
+            return;
+
+        pendingRoundTeleportFrames--;
+
+        ApplyRoundTeleport(RoundTeleportPosition, RoundTeleportYaw);
+
+        Debug.Log(
+            $"[PlayerNetwork] Applied Round Teleport Slot {SlotIndex} -> {RoundTeleportPosition}, " +
+            $"Current={transform.position}, RemainingFrames={pendingRoundTeleportFrames}"
+        );
+    }
+
+    private void ApplyRoundTeleport(Vector3 spawnPosition, float yaw)
+    {
+        Quaternion spawnRotation = Quaternion.Euler(0f, yaw, 0f);
+
+        transform.SetPositionAndRotation(spawnPosition, spawnRotation);
+
+        if (kcc != null)
+        {
+            kcc.SetPosition(spawnPosition);
+            kcc.SetLookRotation(0f, yaw);
+        }
+    }
+
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_ApplyRoundTeleport(Vector3 spawnPosition, float yaw)
+    {
+        ApplyRoundTeleport(spawnPosition, yaw);
     }
 }

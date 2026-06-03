@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1013d0369b4212442b2b0d13a45ab55d, type: 3}
   m_Name: Multi Shot
   m_EditorClassIdentifier: Assembly-CSharp::AugmentDefinition
-  id: 3
+  id: 8
   displayName: Multi Shot
-  description: Fires three weaker projectiles in a spread.
-  icon: {fileID: 21300000, guid: a01b8f01d16bd4e42861501485647d0c, type: 3}
+  description: Fires 3 weaker bullets.
+  icon: {fileID: 0}
   rarity: 0
   category: 0
   extraProjectiles: 2
@@ -32,9 +32,6 @@ MonoBehaviour:
   appliesPoison: 0
   poisonDamagePerTick: 0
   poisonDuration: 0
-  appliesSlow: 0
-  slowMultiplier: 1
-  slowDuration: 0
   explodesOnImpact: 0
   explosionRadius: 0
   explosionDamageMultiplier: 0
@@ -46,3 +43,14 @@ MonoBehaviour:
   cooldownRefundOnHit: 0
   stackable: 0
   maxStacks: 1
+  accessoryType: 0
+  accessoryCountBonus: 0
+  accessoryRadius: 1.4
+  accessoryRotateSpeed: 180
+  accessoryDamage: 0
+  accessoryHitInterval: 0.6
+  shieldBlockAngle: 70
+  replacesActiveItem: 0
+  activeItemType: 0
+  activeItemUsesPerRound: 1
+  medKitHealAmount: 10

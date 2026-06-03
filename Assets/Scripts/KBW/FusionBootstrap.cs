@@ -15,6 +15,10 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private int maxPlayersPerRoom = 2;
     [SerializeField] private string defaultRoomPrefix = "LastRound";
 
+    [Header("Object Pool")]
+    [SerializeField] private PooledNetworkObjectProvider objectProvider;
+    [SerializeField] private int maxPooledObjectsPerPrefab = 64;
+
     private NetworkRunner runner;
     private NetworkSceneManagerDefault sceneManager;
     public event Action GameSessionStarted;
@@ -53,7 +57,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
         dashPressed |= Input.GetKeyDown(KeyCode.LeftShift);
         jumpPressed |= Input.GetKeyDown(KeyCode.Space);
-        abilityPressed |= Input.GetKeyDown(KeyCode.Q);
+        abilityPressed |= Input.GetKeyDown(KeyCode.F);
         reloadPressed |= Input.GetKeyDown(KeyCode.R);
 
         aug1Pressed |= Input.GetKeyDown(KeyCode.Alpha1);
@@ -72,6 +76,14 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
         if (sceneManager == null)
             sceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>();
+
+        if (objectProvider == null)
+            objectProvider = GetComponent<PooledNetworkObjectProvider>();
+
+        if (objectProvider == null)
+            objectProvider = gameObject.AddComponent<PooledNetworkObjectProvider>();
+
+        objectProvider.SetMaxPoolCount(maxPooledObjectsPerPrefab);
     }
 
     public async void JoinLobby()
@@ -170,7 +182,8 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             IsOpen = true,
             IsVisible = true,
             Scene = scene,
-            SceneManager = sceneManager
+            SceneManager = sceneManager,
+            ObjectProvider = objectProvider
         };
 
         // Client가 선택한 방이 사라졌을 때 새 방을 만들어버리는 것을 방지
@@ -302,6 +315,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         if (Input.GetKey(KeyCode.D)) move.x += 1f;
         if (Input.GetKey(KeyCode.A)) move.x -= 1f;
 
+
         data.Move = Vector2.ClampMagnitude(move, 1f);
 
         data.Look = new Vector2(
@@ -325,7 +339,6 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
         buttons.Set(EInputButton.Fire, Input.GetMouseButton(0));
         buttons.Set(EInputButton.AltFire, Input.GetMouseButton(1));
-
         buttons.Set(EInputButton.Dash, dashPressed);
         buttons.Set(EInputButton.Jump, jumpPressed);
         buttons.Set(EInputButton.Ability, abilityPressed);

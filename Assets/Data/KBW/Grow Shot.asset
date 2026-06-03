@@ -10,25 +10,25 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1013d0369b4212442b2b0d13a45ab55d, type: 3}
-  m_Name: Fastball
+  m_Name: Grow Shot
   m_EditorClassIdentifier: Assembly-CSharp::AugmentDefinition
-  id: 4
-  displayName: Fastball
-  description: Bullets fly much faster.
+  id: 6
+  displayName: Grow Shot
+  description: Damage increases with distance.
   icon: {fileID: 0}
   rarity: 0
   category: 0
   extraProjectiles: 0
   spreadAngle: 0
-  projectileSizeMultiplier: 0.9
-  projectileSpeedMultiplier: 2.3
-  damageMultiplier: 0.9
-  fireIntervalMultiplier: 1.1
+  projectileSizeMultiplier: 1
+  projectileSpeedMultiplier: 0.9
+  damageMultiplier: 1
+  fireIntervalMultiplier: 1
   bounceCountBonus: 0
   pierceCountBonus: 0
   targetBounce: 0
-  growDamageByDistance: 0
-  maxGrowDamageMultiplier: 1
+  growDamageByDistance: 1
+  maxGrowDamageMultiplier: 2
   appliesPoison: 0
   poisonDamagePerTick: 0
   poisonDuration: 0

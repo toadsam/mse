@@ -430,6 +430,7 @@ GameObject:
   - component: {fileID: 3497155889627014599}
   - component: {fileID: 5923588606896033443}
   - component: {fileID: 1424595808091354063}
+  - component: {fileID: 3009766321097044644}
   m_Layer: 6
   m_Name: Player_KCC
   m_TagString: Untagged
@@ -499,9 +500,16 @@ MonoBehaviour:
     m_Bits: 65
   fireOrigin: {fileID: 2844314927014452411}
   drawFireDebugRay: 1
+  debugAugmentDatabase: {fileID: 0}
+  debugAugmentId: 1
   _IsFiringNet:
     _value: 0
   _FireAnimCount: 0
+  accessoryHitMask:
+    serializedVersion: 2
+    m_Bits: 64
+  orbitMeleeHitRadius: 0.55
+  accessoryVisualHeight: 1.1
   kccGravity: -25
   jumpImpulseStrength: 12
   _AirState: 0
@@ -516,6 +524,55 @@ MonoBehaviour:
     RawGuidValue: 514db731d92b4044ea0ad4f0e96a7a58
   projectileSpeed: 35
   projectileSpawnForwardOffset: 0.4
+  throwableItemPrefab:
+    RawGuidValue: 7ff6c2ac9566f834a849b2f1e294f924
+  throwingAxePrefab:
+    RawGuidValue: 21e552bb18e75c3479ede69e3320f533
+  explosionFxPrefab:
+    RawGuidValue: 4f49b5c7fbd284b4dbd9c28dcb6433c3
+  smokeZonePrefab:
+    RawGuidValue: ba32e145d9f2a9a4faecbb43e53560c8
+  _ProjectileExtraProjectiles: 0
+  _ProjectileSpreadAngle: 0
+  _ProjectileSizeMultiplier: 0
+  _ProjectileSpeedMultiplier: 0
+  _ProjectileDamageMultiplier: 0
+  _FireIntervalMultiplier: 0
+  _ProjectileBounceCount: 0
+  _ProjectilePierceCount: 0
+  _ProjectileTargetBounce:
+    _value: 0
+  _ProjectileGrowDamageByDistance:
+    _value: 0
+  _ProjectileMaxGrowDamageMultiplier: 0
+  _ProjectileAppliesPoison:
+    _value: 0
+  _ProjectilePoisonDamagePerTick: 0
+  _ProjectilePoisonDuration: 0
+  _ProjectileAppliesSlow:
+    _value: 0
+  _ProjectileSlowMultiplier: 0
+  _ProjectileSlowDuration: 0
+  _ProjectileExplodesOnImpact:
+    _value: 0
+  _ProjectileExplosionRadius: 0
+  _ProjectileExplosionDamageMultiplier: 0
+  _ProjectileCreatesToxicCloud:
+    _value: 0
+  _ProjectileCloudRadius: 0
+  _ProjectileCloudDuration: 0
+  _OrbitShieldCount: 0
+  _OrbitMeleeCount: 0
+  _DropMeleeCount: 0
+  _AccessoryRadius: 0
+  _AccessoryRotateSpeed: 0
+  _AccessoryDamage: 0
+  _AccessoryHitInterval: 0
+  _ShieldBlockAngle: 0
+  _CurrentActiveItem: 0
+  _ActiveItemUsesRemaining: 0
+  _ActiveItemUsesPerRound: 0
+  _MedKitHealAmount: 0
   _PlayerName:
     _length: 0
     _data:
@@ -543,6 +600,8 @@ MonoBehaviour:
   _DashDistanceBonus: 0
   _DashCooldownMultiplier: 0
   _HitConfirmCount: 0
+  _CanSelectAugmentNet:
+    _value: 0
   fallbackMuzzleLocalOffset: {x: 0.25, y: 1.35, z: 0.65}
 --- !u!54 &641033716158957635
 Rigidbody:
@@ -671,10 +730,32 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
   maxHealth: 100
+  poisonTickInterval: 1
   _CurrentHealth: 0
   _IsAlive:
     _value: 0
   _DamageFeedbackCount: 0
+  _IsPoisonedNet:
+    _value: 0
+--- !u!114 &3009766321097044644
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7731108197638085758}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d6ecfbbf2f741f841b9c8c4cd0d0d437, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerAugmentAccessoryView
+  player: {fileID: -3742711794377281001}
+  visualRoot: {fileID: 4533020323496900447}
+  shieldVisualPrefab: {fileID: 1514107727950626, guid: 6d681d8c0b8ff204ea958a229a248b39, type: 3}
+  orbitMeleeVisualPrefab: {fileID: 1657996491295356, guid: 9023a47e211f9384aa25b0a32a008f0f, type: 3}
+  visualHeight: 1.1
+  shieldEulerOffset: {x: 0, y: 0, z: 0}
+  meleeEulerOffset: {x: 0, y: 90, z: 90}
 --- !u!1 &7959269236242936839
 GameObject:
   m_ObjectHideFlags: 0

@@ -20,10 +20,29 @@ public class MatchHUD : MonoBehaviour
     [SerializeField] private GameObject centerMessagePanel;
     [SerializeField] private TMP_Text centerMessageText;
 
+    [Header("Health Color")]
+    [SerializeField] private Image healthFillImage;
+    [SerializeField] private Color normalHealthColor = new Color(0.9f, 0.1f, 0.1f, 1f);
+    [SerializeField] private Color poisonHealthColor = new Color(0.1f, 0.9f, 0.1f, 1f);
+
+    [Header("Active Item")]
+    [SerializeField] private GameObject activeItemPanel;
+    [SerializeField] private Image activeItemIconImage;
+    [SerializeField] private TMP_Text activeItemNameText;
+    [SerializeField] private TMP_Text activeItemStateText;
+
+    [SerializeField] private Sprite medKitIcon;
+    [SerializeField] private Sprite grenadeIcon;
+    [SerializeField] private Sprite smokeBombIcon;
+    [SerializeField] private Sprite throwingAxeIcon;
+
     private void Awake()
     {
         if (hudRoot == null)
             hudRoot = gameObject;
+
+        if (healthFillImage == null && healthSlider != null && healthSlider.fillRect != null)
+            healthFillImage = healthSlider.fillRect.GetComponent<Image>();
 
         SetCenterMessage(false, "");
     }
@@ -54,6 +73,7 @@ public class MatchHUD : MonoBehaviour
 
         UpdateHealth(localPlayer);
         UpdateRoundAndScore(match, localPlayer);
+        UpdateActiveItem(localPlayer);
         UpdateCenterMessage(match, localPlayer);
     }
 
@@ -76,6 +96,9 @@ public class MatchHUD : MonoBehaviour
                 healthSlider.value = 0;
             }
 
+            if (healthFillImage != null)
+                healthFillImage.color = normalHealthColor;
+
             return;
         }
 
@@ -88,6 +111,9 @@ public class MatchHUD : MonoBehaviour
             healthSlider.maxValue = max;
             healthSlider.value = current;
         }
+
+        if (healthFillImage != null)
+            healthFillImage.color = health.IsPoisonedNet ? poisonHealthColor : normalHealthColor;
     }
 
     private void UpdateRoundAndScore(MatchManager match, PlayerNetwork localPlayer)
@@ -153,5 +179,64 @@ public class MatchHUD : MonoBehaviour
 
         if (centerMessageText != null)
             centerMessageText.text = message;
+    }
+
+    private void UpdateActiveItem(PlayerNetwork localPlayer)
+    {
+        if (activeItemPanel != null)
+            activeItemPanel.SetActive(localPlayer != null);
+
+        if (localPlayer == null)
+            return;
+
+        ActiveItemType item = localPlayer.CurrentActiveItem;
+
+        if (activeItemIconImage != null)
+            activeItemIconImage.sprite = GetActiveItemIcon(item);
+
+        if (activeItemNameText != null)
+            activeItemNameText.text = GetActiveItemName(item);
+
+        if (activeItemStateText != null)
+            activeItemStateText.text = GetActiveItemStateText(localPlayer);
+    }
+
+    private Sprite GetActiveItemIcon(ActiveItemType item)
+    {
+        return item switch
+        {
+            ActiveItemType.MedKit => medKitIcon,
+            ActiveItemType.Grenade => grenadeIcon,
+            ActiveItemType.SmokeBomb => smokeBombIcon,
+            ActiveItemType.ThrowingAxe => throwingAxeIcon,
+            _ => null
+        };
+    }
+
+    private string GetActiveItemName(ActiveItemType item)
+    {
+        return item switch
+        {
+            ActiveItemType.MedKit => "Med Kit",
+            ActiveItemType.Grenade => "Grenade",
+            ActiveItemType.SmokeBomb => "Smoke Bomb",
+            ActiveItemType.ThrowingAxe => "Throwing Axe",
+            _ => "-"
+        };
+    }
+
+    private string GetActiveItemStateText(PlayerNetwork player)
+    {
+        if (player == null)
+            return "";
+
+        if (player.CurrentActiveItem == ActiveItemType.ThrowingAxe)
+        {
+            return player.ActiveItemUsesRemaining > 0
+                ? "Ready"
+                : "Retrieve";
+        }
+
+        return $"{player.ActiveItemUsesRemaining}";
     }
 }
