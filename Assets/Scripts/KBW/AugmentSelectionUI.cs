@@ -65,6 +65,28 @@ public class AugmentSelectionUI : MonoBehaviour
         if (!shouldShow || localPlayer == null)
             return;
 
+        if (!localPlayer.CanSelectAugmentNet)
+        {
+            if (titleText) titleText.text = "Opponent is choosing an augment";
+            if (subText) subText.text = "You won the previous round.";
+            if (waitingText)
+            {
+                waitingText.text = "Waiting for opponent...";
+                waitingText.gameObject.SetActive(true);
+            }
+
+            foreach (var card in cards)
+            {
+                if (card != null)
+                {
+                    card.SetInteractable(false);
+                    card.gameObject.SetActive(false);
+                }
+            }
+
+            return;
+        }
+
         if (localPlayer.OfferedAugmentId0 != lastA0 ||
             localPlayer.OfferedAugmentId1 != lastA1 ||
             localPlayer.OfferedAugmentId2 != lastA2)
@@ -79,6 +101,15 @@ public class AugmentSelectionUI : MonoBehaviour
     public void RefreshUI()
     {
         if (localPlayer == null || augmentDatabase == null) return;
+
+        if (titleText) titleText.text = "Choose Your Augment";
+        if (subText) subText.text = "Select one augment before the round starts.";
+
+        foreach (var card in cards)
+        {
+            if (card != null)
+                card.gameObject.SetActive(true);
+        }
 
         int[] ids =
         {
@@ -103,6 +134,7 @@ public class AugmentSelectionUI : MonoBehaviour
     private void OnCardClicked(int slotIndex)
     {
         if (localPlayer == null) return;
+        if (!localPlayer.CanSelectAugmentNet) return;
         if (localPlayer.HasSelectedAugmentNet) return;
 
         localPlayer.RPC_RequestSelectAugment(slotIndex);

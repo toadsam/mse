@@ -9,10 +9,27 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 {
     [Header("Network")]
     [SerializeField] private NetworkPrefabRef playerPrefab;
-    [SerializeField] private string sessionName = "LastRound_TestRoom";
+
+    [Header("Lobby")]
+    [SerializeField] private string customLobbyName = "LastRound_Lobby";
+    [SerializeField] private int maxPlayersPerRoom = 2;
+    [SerializeField] private string defaultRoomPrefix = "LastRound";
 
     private NetworkRunner runner;
+    private NetworkSceneManagerDefault sceneManager;
+    public event Action GameSessionStarted;
+
     private readonly Dictionary<PlayerRef, NetworkObject> spawnedPlayers = new();
+    private readonly List<SessionInfo> cachedSessions = new();
+
+    public IReadOnlyList<SessionInfo> CachedSessions => cachedSessions;
+
+    public event Action<IReadOnlyList<SessionInfo>> SessionListUpdated;
+    public event Action<string> StatusChanged;
+
+    private bool isBusy;
+    private bool isInLobby;
+
 
     // 탭 입력 누락 방지용
     private bool dashPressed;
@@ -23,37 +40,6 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     private bool aug3Pressed;
     private bool jumpPressed;
 
-    private async void StartGame(GameMode mode)
-    {
-        if (runner != null)
-            return;
-
-        runner = gameObject.AddComponent<NetworkRunner>();
-        runner.ProvideInput = true;
-
-        var scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex);
-
-        await runner.StartGame(new StartGameArgs
-        {
-            GameMode = mode,
-            SessionName = sessionName,
-            Scene = scene,
-            SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
-        });
-    }
-
-    private void OnGUI()
-    {
-        if (runner != null)
-            return;
-
-        if (GUI.Button(new Rect(10, 10, 160, 40), "Host"))
-            StartGame(GameMode.Host);
-
-        if (GUI.Button(new Rect(10, 60, 160, 40), "Join"))
-            StartGame(GameMode.Client);
-    }
-
     private void Start()
     {
         GameManager.Instance?.RegisterBootstrap(this);
@@ -61,106 +47,189 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
     private void Update()
     {
-        // 한 번 눌림만 필요한 입력은 Update에서 누적
+        // UI 상태에서는 게임플레이 입력을 누적하지 않음
+        if (GameManager.Instance != null && GameManager.Instance.BlocksGameplayInput)
+            return;
+
+        dashPressed |= Input.GetKeyDown(KeyCode.LeftShift);
         jumpPressed |= Input.GetKeyDown(KeyCode.Space);
-        dashPressed |= Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift);
         abilityPressed |= Input.GetKeyDown(KeyCode.Q);
         reloadPressed |= Input.GetKeyDown(KeyCode.R);
 
-        // 능력 선택은 일단 마우스 입력으로만 처리, 나중에 키보드 입력도 추가할 수 있음
         aug1Pressed |= Input.GetKeyDown(KeyCode.Alpha1);
         aug2Pressed |= Input.GetKeyDown(KeyCode.Alpha2);
         aug3Pressed |= Input.GetKeyDown(KeyCode.Alpha3);
     }
 
-    private void FillAimRay(ref GameplayInput data)
+    private void CreateRunnerIfNeeded()
     {
-        Camera cam = Camera.main;
+        if (runner != null)
+            return;
 
-        if (cam != null)
-        {
-            Ray aimRay = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
-            data.AimOrigin = aimRay.origin;
-            data.AimDirection = aimRay.direction.normalized;
-        }
-        else
-        {
-            data.AimOrigin = Vector3.zero;
-            data.AimDirection = Vector3.zero;
-        }
+        runner = gameObject.AddComponent<NetworkRunner>();
+        runner.ProvideInput = true;
+        runner.AddCallbacks(this);
+
+        if (sceneManager == null)
+            sceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>();
     }
 
-    public void OnInput(NetworkRunner runner, NetworkInput input)
+    public async void JoinLobby()
     {
-        GameplayInput data = new GameplayInput();
+        if (isBusy)
+            return;
 
-        bool blockGameplay = GameManager.Instance != null && GameManager.Instance.BlocksGameplayInput;
+        CreateRunnerIfNeeded();
 
-        if (blockGameplay)
+        if (isInLobby)
         {
-            data.Move = Vector2.zero;
-            data.Look = Vector2.zero;
-
-            FillAimRay(ref data);
-
-            data.Buttons.Set(EInputButton.Fire, false);
-            data.Buttons.Set(EInputButton.AltFire, false);
-            data.Buttons.Set(EInputButton.Dash, false);
-            data.Buttons.Set(EInputButton.Jump, false);
-            data.Buttons.Set(EInputButton.Ability, false);
-            data.Buttons.Set(EInputButton.Reload, false);
-
-            input.Set(data);
-
-            jumpPressed = false;
-            dashPressed = false;
-            abilityPressed = false;
-            reloadPressed = false;
-            aug1Pressed = false;
-            aug2Pressed = false;
-            aug3Pressed = false;
+            SessionListUpdated?.Invoke(cachedSessions);
             return;
         }
 
+        isBusy = true;
+        StatusChanged?.Invoke("Connecting to lobby...");
 
-        Vector2 move = Vector2.zero;
-        if (Input.GetKey(KeyCode.W)) move.y += 1f;
-        if (Input.GetKey(KeyCode.S)) move.y -= 1f;
-        if (Input.GetKey(KeyCode.A)) move.x -= 1f;
-        if (Input.GetKey(KeyCode.D)) move.x += 1f;
-        data.Move = move;
+        var result = await runner.JoinSessionLobby(SessionLobby.Custom, customLobbyName);
 
-        // 마우스 이동도 네트워크 입력으로 전달
-        data.Look = new Vector2(
-            Input.GetAxisRaw("Mouse X"),
-            Input.GetAxisRaw("Mouse Y")
-        );
+        isBusy = false;
 
-        FillAimRay(ref data);
+        if (result.Ok)
+        {
+            isInLobby = true;
+            StatusChanged?.Invoke("Lobby connected. Select a room or create one.");
+        }
+        else
+        {
+            StatusChanged?.Invoke($"Failed to join lobby: {result.ShutdownReason}");
+            Debug.LogError($"[FusionBootstrap] JoinLobby failed: {result.ShutdownReason}");
+        }
+    }
 
-        // 유지형 입력
-        data.Buttons.Set(EInputButton.Fire, Input.GetMouseButton(0));
-        data.Buttons.Set(EInputButton.AltFire, Input.GetMouseButton(1));
+    public void CreateRoom(string requestedRoomName)
+    {
+        if (isBusy)
+            return;
 
-        // 탭형 입력
-        data.Buttons.Set(EInputButton.Dash, dashPressed);
-        data.Buttons.Set(EInputButton.Jump, jumpPressed);
-        data.Buttons.Set(EInputButton.Ability, abilityPressed);
-        data.Buttons.Set(EInputButton.Reload, reloadPressed);
-        data.Buttons.Set(EInputButton.ConfirmAugment1, aug1Pressed);
-        data.Buttons.Set(EInputButton.ConfirmAugment2, aug2Pressed);
-        data.Buttons.Set(EInputButton.ConfirmAugment3, aug3Pressed);
+        string roomName = BuildRoomName(requestedRoomName);
 
-        input.Set(data);
+        if (IsDuplicateRoomName(roomName))
+        {
+            StatusChanged?.Invoke($"Room already exists: {roomName}");
+            return;
+        }
 
-        // 이번 프레임 입력 전달 후 리셋
-        jumpPressed = false;
-        dashPressed = false;
-        abilityPressed = false;
-        reloadPressed = false;
-        aug1Pressed = false;
-        aug2Pressed = false;
-        aug3Pressed = false;
+        StartSession(GameMode.Host, roomName);
+    }
+
+    public void JoinRoom(string roomName)
+    {
+        if (isBusy)
+            return;
+
+        if (string.IsNullOrWhiteSpace(roomName))
+        {
+            StatusChanged?.Invoke("Room name is empty.");
+            return;
+        }
+
+        StartSession(GameMode.Client, roomName);
+    }
+
+    public void JoinRoom(SessionInfo session)
+    {
+        if (session == null)
+            return;
+
+        if (!session.IsOpen || session.PlayerCount >= session.MaxPlayers)
+        {
+            StatusChanged?.Invoke("This room is full or closed.");
+            return;
+        }
+
+        JoinRoom(session.Name);
+    }
+
+    private async void StartSession(GameMode mode, string roomName)
+    {
+        CreateRunnerIfNeeded();
+
+        isBusy = true;
+        StatusChanged?.Invoke(mode == GameMode.Host
+            ? $"Creating room: {roomName}"
+            : $"Joining room: {roomName}");
+
+        var scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex);
+
+        var args = new StartGameArgs
+        {
+            GameMode = mode,
+            SessionName = roomName,
+            CustomLobbyName = customLobbyName,
+            PlayerCount = maxPlayersPerRoom,
+            IsOpen = true,
+            IsVisible = true,
+            Scene = scene,
+            SceneManager = sceneManager
+        };
+
+        // Client가 선택한 방이 사라졌을 때 새 방을 만들어버리는 것을 방지
+        if (mode == GameMode.Client)
+            args.EnableClientSessionCreation = false;
+
+        var result = await runner.StartGame(args);
+
+        isBusy = false;
+
+        if (result.Ok)
+        {
+            isInLobby = false;
+            StatusChanged?.Invoke($"Connected: {roomName}");
+
+            GameSessionStarted?.Invoke();
+        }
+        else
+        {
+            StatusChanged?.Invoke($"Connection failed: {result.ShutdownReason}");
+            Debug.LogError($"[FusionBootstrap] StartSession failed: {result.ShutdownReason}");
+        }
+    }
+
+    private string BuildRoomName(string requestedRoomName)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedRoomName))
+            return requestedRoomName.Trim();
+
+        int random = UnityEngine.Random.Range(1000, 9999);
+        return $"{defaultRoomPrefix}_{random}";
+    }
+
+    private bool IsDuplicateRoomName(string roomName)
+    {
+        foreach (SessionInfo session in cachedSessions)
+        {
+            if (session != null && session.Name == roomName)
+                return true;
+        }
+
+        return false;
+    }
+
+    public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
+    {
+        cachedSessions.Clear();
+
+        foreach (SessionInfo session in sessionList)
+        {
+            if (session == null)
+                continue;
+
+            // Last Round 로비에서 보여줄 수 있는 방만 캐싱
+            cachedSessions.Add(session);
+        }
+
+        SessionListUpdated?.Invoke(cachedSessions);
+        StatusChanged?.Invoke($"Rooms found: {cachedSessions.Count}");
     }
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
@@ -177,16 +246,20 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             playerPrefab,
             spawnPos,
             Quaternion.identity,
-            player
+            player,
+            (runner, obj) =>
+            {
+                PlayerNetwork pn = obj.GetComponent<PlayerNetwork>();
+                if (pn != null)
+                    pn.ServerInitialize((byte)slot);
+            }
         );
 
         runner.SetPlayerObject(player, playerObj);
 
-        PlayerNetwork pn = playerObj.GetComponent<PlayerNetwork>();
-        if (pn != null)
-            pn.ServerInitialize((byte)slot);
-
         spawnedPlayers.Add(player, playerObj);
+
+        UpdateRoomAvailability();
     }
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
@@ -196,7 +269,110 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             runner.Despawn(obj);
             spawnedPlayers.Remove(player);
         }
+
         runner.SetPlayerObject(player, null);
+
+        UpdateRoomAvailability();
+    }
+
+    public void OnInput(NetworkRunner runner, NetworkInput input)
+    {
+        GameplayInput data = new GameplayInput();
+
+        bool blockGameplayInput =
+            GameManager.Instance != null &&
+            GameManager.Instance.BlocksGameplayInput;
+
+        bool isPlaying =
+            GameManager.Instance != null &&
+            GameManager.Instance.CurrentPhase == MatchPhase.Playing;
+
+        // Playing 상태가 아니거나 UI 상태면 빈 입력만 전달
+        if (!isPlaying || blockGameplayInput)
+        {
+            input.Set(data);
+            ClearBufferedInput();
+            return;
+        }
+
+        Vector2 move = Vector2.zero;
+
+        if (Input.GetKey(KeyCode.W)) move.y += 1f;
+        if (Input.GetKey(KeyCode.S)) move.y -= 1f;
+        if (Input.GetKey(KeyCode.D)) move.x += 1f;
+        if (Input.GetKey(KeyCode.A)) move.x -= 1f;
+
+        data.Move = Vector2.ClampMagnitude(move, 1f);
+
+        data.Look = new Vector2(
+            Input.GetAxisRaw("Mouse X"),
+            Input.GetAxisRaw("Mouse Y")
+        );
+
+        Camera cam = Camera.main;
+        if (cam != null)
+        {
+            data.AimOrigin = cam.transform.position;
+            data.AimDirection = cam.transform.forward;
+        }
+        else
+        {
+            data.AimOrigin = Vector3.zero;
+            data.AimDirection = Vector3.forward;
+        }
+
+        NetworkButtons buttons = default;
+
+        buttons.Set(EInputButton.Fire, Input.GetMouseButton(0));
+        buttons.Set(EInputButton.AltFire, Input.GetMouseButton(1));
+
+        buttons.Set(EInputButton.Dash, dashPressed);
+        buttons.Set(EInputButton.Jump, jumpPressed);
+        buttons.Set(EInputButton.Ability, abilityPressed);
+        buttons.Set(EInputButton.Reload, reloadPressed);
+
+        buttons.Set(EInputButton.ConfirmAugment1, aug1Pressed);
+        buttons.Set(EInputButton.ConfirmAugment2, aug2Pressed);
+        buttons.Set(EInputButton.ConfirmAugment3, aug3Pressed);
+
+        data.Buttons = buttons;
+
+        input.Set(data);
+
+        ClearBufferedInput();
+    }
+
+    private void ClearBufferedInput()
+    {
+        dashPressed = false;
+        jumpPressed = false;
+        abilityPressed = false;
+        reloadPressed = false;
+
+        aug1Pressed = false;
+        aug2Pressed = false;
+        aug3Pressed = false;
+    }
+
+    private void UpdateRoomAvailability()
+    {
+        if (runner == null)
+            return;
+
+        if (!runner.IsServer)
+            return;
+
+        if (!runner.SessionInfo.IsValid)
+            return;
+
+        bool waitingForOpponent =
+            MatchManager.Instance == null ||
+            MatchManager.Instance.CurrentPhase == MatchPhase.Lobby;
+
+        bool canJoin = waitingForOpponent && spawnedPlayers.Count < maxPlayersPerRoom;
+
+        runner.SessionInfo.IsOpen = canJoin;
+        runner.SessionInfo.IsVisible = canJoin;
     }
 
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
@@ -206,7 +382,6 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
     public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
     public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
-    public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList) { }
     public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }
     public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) { }
     public void OnSceneLoadDone(NetworkRunner runner) { }

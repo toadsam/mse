@@ -9,7 +9,6 @@ public class AugmentCardUI : MonoBehaviour
     [SerializeField] private TMP_Text nameText;
     [SerializeField] private TMP_Text descriptionText;
     [SerializeField] private Button button;
-    [SerializeField] private GameObject highlightObject;
 
     private int slotIndex;
     private Action<int> onClick;
@@ -27,22 +26,14 @@ public class AugmentCardUI : MonoBehaviour
         {
             button.onClick.RemoveAllListeners();
             button.onClick.AddListener(OnClick);
+            button.interactable = true;
         }
-
-        SetHighlight(false);
-        SetInteractable(true);
     }
 
     public void SetInteractable(bool interactable)
     {
         if (button)
             button.interactable = interactable;
-    }
-
-    public void SetHighlight(bool value)
-    {
-        if (highlightObject)
-            highlightObject.SetActive(value);
     }
 
     private void OnClick()
