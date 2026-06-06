@@ -44,6 +44,19 @@ public class MatchManager : NetworkBehaviour
     [Networked] public int RoundWinnerSlot { get; private set; }
     [Networked] public int MatchWinnerSlot { get; private set; }
 
+    // 매치 지속 시간(초). 결과 화면 표시용. 호스트가 매치 종료 시 확정한다.
+    [Networked] public float MatchDurationSeconds { get; private set; }
+    [Networked] private float MatchStartSimTime { get; set; }
+
+    // 백엔드 저장 결과 상태(결과 화면이 저장 성공 후 표시되도록 하는 신호).
+    // Resolved: 저장 시도/스킵이 끝남, Succeeded: DB 저장 성공.
+    [Networked] public NetworkBool ResultSaveResolved { get; private set; }
+    [Networked] public NetworkBool ResultSaveSucceeded { get; private set; }
+
+    // 호스트 콜백(코루틴)에서 세팅 → FixedUpdateNetwork에서 네트워크 상태로 미러링.
+    private bool pendingSaveResolved;
+    private bool pendingSaveSucceeded;
+
     [Networked] private TickTimer PhaseTimer { get; set; }
 
     private int lastAppliedArenaIndex = -999;
@@ -111,6 +124,15 @@ public class MatchManager : NetworkBehaviour
                     }
                 }
                 break;
+
+            case MatchPhase.MatchResult:
+                // 백엔드 저장 콜백(코루틴)에서 세팅한 결과를 네트워크 상태로 미러링한다.
+                if (pendingSaveResolved && !ResultSaveResolved)
+                {
+                    ResultSaveSucceeded = pendingSaveSucceeded;
+                    ResultSaveResolved = true;
+                }
+                break;
         }
     }
 
@@ -138,7 +160,18 @@ public class MatchManager : NetworkBehaviour
 
         matchResultReported = false;
 
+        MatchStartSimTime = (float)Runner.SimulationTime;
+        MatchDurationSeconds = 0f;
+        ResultSaveResolved = false;
+        ResultSaveSucceeded = false;
+        pendingSaveResolved = false;
+        pendingSaveSucceeded = false;
+
         usedOfferedAugmentIds.Clear();
+
+        // 새 매치 시작 시 각 플레이어의 augment 선택 누적 기록 초기화.
+        foreach (PlayerNetwork player in GetAllPlayers())
+            player.ResetAugmentHistory();
 
         InitializeArenaPool();
         EnterAugmentPhase();
@@ -264,6 +297,8 @@ public class MatchManager : NetworkBehaviour
         Phase = MatchPhase.MatchResult;
         PhaseTimer = default;
 
+        MatchDurationSeconds = Mathf.Max(0f, (float)Runner.SimulationTime - MatchStartSimTime);
+
         ReportMatchResultToBackend();
     }
 
@@ -307,11 +342,85 @@ public class MatchManager : NetworkBehaviour
         if (MatchResultService.Instance == null)
         {
             Debug.LogWarning("[MatchManager] MatchResultService.Instance가 없어 매치 결과를 저장하지 못했어.");
+            // 저장 불가 → 결과 화면은 정상 표시되도록 resolved 처리(저장 실패 상태).
+            pendingSaveSucceeded = false;
+            pendingSaveResolved = true;
             return;
         }
 
-        Debug.Log($"[MatchManager] 매치 결과 저장 요청: p1={player1Id}, p2={player2Id}, winner={winnerId}, score={Player0Wins}:{Player1Wins}");
-        MatchResultService.Instance.SaveResult(player1Id, player2Id, winnerId, Player0Wins, Player1Wins);
+        MatchResultRequest request = BuildMatchResultRequest(slot0, slot1, winnerId);
+
+        Debug.Log($"[MatchManager] 매치 결과 저장 요청: p1={player1Id}, p2={player2Id}, winner={winnerId}, score={Player0Wins}:{Player1Wins}, duration={MatchDurationSeconds:0.0}s");
+
+        MatchResultService.Instance.SaveResult(
+            request,
+            match =>
+            {
+                Debug.Log($"[MatchManager] 매치 결과 저장 성공. matchId={match?.id}");
+                pendingSaveSucceeded = true;
+                pendingSaveResolved = true;
+            },
+            error =>
+            {
+                Debug.LogError($"[MatchManager] 매치 결과 저장 실패: {error}");
+                pendingSaveSucceeded = false;
+                pendingSaveResolved = true;
+            });
+    }
+
+    // 두 플레이어의 닉네임/캐릭터/선택 augment 이름/점수를 채운 저장 요청을 만든다.
+    private MatchResultRequest BuildMatchResultRequest(PlayerNetwork slot0, PlayerNetwork slot1, long winnerId)
+    {
+        MatchResultRequest request = new MatchResultRequest
+        {
+            player1Id = slot0.BackendUserId,
+            player2Id = slot1.BackendUserId,
+            winnerId = winnerId,
+            player1Score = Player0Wins,
+            player2Score = Player1Wins,
+            players = new List<MatchPlayerResultRequest>
+            {
+                BuildPlayerResult(slot0, winnerId, Player0Wins),
+                BuildPlayerResult(slot1, winnerId, Player1Wins)
+            }
+        };
+
+        return request;
+    }
+
+    private MatchPlayerResultRequest BuildPlayerResult(PlayerNetwork player, long winnerId, int score)
+    {
+        List<MatchPlayerAugmentRequest> augments = new List<MatchPlayerAugmentRequest>();
+
+        for (int i = 0; i < player.AugmentHistoryCount; i++)
+        {
+            int augmentId = player.GetSelectedAugmentId(i);
+            int round = player.GetSelectedAugmentRound(i);
+
+            AugmentDefinition def = GetAugmentById(augmentId);
+            string augmentName = def != null ? def.displayName : null;
+
+            if (string.IsNullOrEmpty(augmentName))
+                continue; // 이름을 알 수 없는 항목은 저장하지 않는다.
+
+            augments.Add(new MatchPlayerAugmentRequest
+            {
+                augmentId = 0, // Unity augment는 DB augments와 매핑되지 않음 → 이름으로만 저장.
+                augmentName = augmentName,
+                selectedOrder = i + 1,               // 유저별로 (round, order) 유일하도록 전역 증가.
+                selectedRound = round > 0 ? round : i + 1
+            });
+        }
+
+        return new MatchPlayerResultRequest
+        {
+            userId = player.BackendUserId,
+            result = player.BackendUserId == winnerId ? "WIN" : "LOSE",
+            score = Mathf.Clamp(score, 0, 10),
+            damageDealt = 0,
+            characterName = player.CharacterDisplayName.ToString(),
+            augments = augments
+        };
     }
 
     public void OnRoundEnded()
@@ -563,6 +672,30 @@ public class MatchManager : NetworkBehaviour
     public AugmentDefinition GetAugmentById(int id)
     {
         return augmentDatabase != null ? augmentDatabase.GetById(id) : null;
+    }
+
+    // 결과 화면용: 슬롯(0/1)에 해당하는 플레이어를 반환한다.
+    public PlayerNetwork GetPlayerBySlot(int slot)
+    {
+        return GetAllPlayers().Find(p => p.SlotIndex == slot);
+    }
+
+    // 결과 화면용: 해당 플레이어가 매치 중 선택한 augment 표시 이름 목록.
+    public List<string> GetSelectedAugmentNames(PlayerNetwork player)
+    {
+        List<string> names = new List<string>();
+
+        if (player == null)
+            return names;
+
+        for (int i = 0; i < player.AugmentHistoryCount; i++)
+        {
+            AugmentDefinition def = GetAugmentById(player.GetSelectedAugmentId(i));
+            if (def != null && !string.IsNullOrEmpty(def.displayName))
+                names.Add(def.displayName);
+        }
+
+        return names;
     }
 
     [ContextMenu("Debug/Player 0 Win Round")]

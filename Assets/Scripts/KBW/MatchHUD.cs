@@ -41,11 +41,11 @@ public class MatchHUD : MonoBehaviour
         MatchManager match = gm.Match;
         PlayerNetwork localPlayer = gm.LocalPlayer;
 
+        // MatchResult 단계는 전용 Match_Result 패널이 담당하므로 HUD는 숨긴다.
         bool shouldShowHud =
             match.CurrentPhase == MatchPhase.RoundIntro ||
             match.CurrentPhase == MatchPhase.Playing ||
-            match.CurrentPhase == MatchPhase.RoundResult ||
-            match.CurrentPhase == MatchPhase.MatchResult;
+            match.CurrentPhase == MatchPhase.RoundResult;
 
         SetHudVisible(shouldShowHud);
 

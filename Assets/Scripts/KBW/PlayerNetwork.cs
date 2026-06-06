@@ -100,6 +100,16 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public int SelectedAugmentId { get; private set; }
     [Networked] public NetworkBool HasSelectedAugmentNet { get; private set; }
 
+    // 캐릭터 표시 이름(프로필 RPC로 호스트에 동기화). 결과 화면/백엔드 저장에 사용.
+    [Networked] public NetworkString<_32> CharacterDisplayName { get; private set; }
+
+    // 매치 동안 선택한 augment를 누적 보존(SelectedAugmentId는 매 라운드 초기화되어 직전 1개만 남기 때문).
+    // 결과 화면 표시 및 백엔드(MySQL) 저장에 사용한다. (best-of-3 기준 최대 라운드 수 여유 있게 8)
+    public const int MaxAugmentHistory = 8;
+    [Networked, Capacity(MaxAugmentHistory)] public NetworkArray<int> AugmentHistoryIds { get; }
+    [Networked, Capacity(MaxAugmentHistory)] public NetworkArray<int> AugmentHistoryRounds { get; }
+    [Networked] public int AugmentHistoryCount { get; private set; }
+
     [Networked] public float DashDistanceBonus { get; private set; }
     [Networked] public float DashCooldownMultiplier { get; private set; }
 
@@ -147,8 +157,11 @@ public class PlayerNetwork : NetworkBehaviour
         {
             CharacterId = 0;
             PlayerName = $"Player {slotIndex + 1}";
+            CharacterDisplayName = $"Character {slotIndex + 1}";
         }
         HasAppliedProfile = false;
+
+        ResetAugmentHistory();
 
         MoveSpeedBonus = 0f;
 
@@ -216,7 +229,8 @@ public class PlayerNetwork : NetworkBehaviour
 
         RPC_RequestApplyProfile(
             LocalPlayerProfile.CharacterId,
-            LocalPlayerProfile.PlayerName
+            LocalPlayerProfile.PlayerName,
+            LocalPlayerProfile.CharacterName
         );
 
         // 로그인 상태면 내 backend userId를 호스트로 전달(게스트/비로그인은 0 → 호스트가 저장을 스킵).
@@ -728,12 +742,12 @@ public class PlayerNetwork : NetworkBehaviour
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-    public void RPC_RequestApplyProfile(byte requestedCharacterId, string requestedPlayerName)
+    public void RPC_RequestApplyProfile(byte requestedCharacterId, string requestedPlayerName, string requestedCharacterName)
     {
         if (playerVisuals != null && !playerVisuals.IsValidCharacterId(requestedCharacterId))
             requestedCharacterId = 0;
 
-        Debug.Log($"[PlayerNetwork] Apply profile requested. RequestedCharacterId={requestedCharacterId}, Name={requestedPlayerName}");
+        Debug.Log($"[PlayerNetwork] Apply profile requested. RequestedCharacterId={requestedCharacterId}, Name={requestedPlayerName}, Character={requestedCharacterName}");
 
         if (playerVisuals != null && !playerVisuals.IsValidCharacterId(requestedCharacterId))
         {
@@ -749,8 +763,15 @@ public class PlayerNetwork : NetworkBehaviour
         if (safeName.Length > LocalPlayerProfile.MaxNameLength)
             safeName = safeName.Substring(0, LocalPlayerProfile.MaxNameLength);
 
+        string safeCharacterName = (requestedCharacterName ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(safeCharacterName))
+            safeCharacterName = $"Character {requestedCharacterId + 1}";
+        if (safeCharacterName.Length > 31)
+            safeCharacterName = safeCharacterName.Substring(0, 31);
+
         CharacterId = requestedCharacterId;
         PlayerName = safeName;
+        CharacterDisplayName = safeCharacterName;
         HasAppliedProfile = true;
     }
 
@@ -794,6 +815,53 @@ public class PlayerNetwork : NetworkBehaviour
         SelectedAugmentId = augmentId;
         HasSelectedAugmentNet = true;
 
+        RecordSelectedAugment(augmentId, match.RoundIndex);
+
         match.NotifyPlayerSelectedAugment(this);
+    }
+
+    // 호스트에서만 호출. 이번 매치에서 선택한 augment를 누적 기록한다.
+    private void RecordSelectedAugment(int augmentId, int roundIndex)
+    {
+        if (!HasStateAuthority)
+            return;
+
+        if (AugmentHistoryCount >= MaxAugmentHistory)
+            return;
+
+        AugmentHistoryIds.Set(AugmentHistoryCount, augmentId);
+        AugmentHistoryRounds.Set(AugmentHistoryCount, roundIndex);
+        AugmentHistoryCount++;
+    }
+
+    // 매치 시작 시 호스트가 누적 기록을 초기화한다.
+    public void ResetAugmentHistory()
+    {
+        if (!HasStateAuthority)
+            return;
+
+        for (int i = 0; i < MaxAugmentHistory; i++)
+        {
+            AugmentHistoryIds.Set(i, -1);
+            AugmentHistoryRounds.Set(i, -1);
+        }
+
+        AugmentHistoryCount = 0;
+    }
+
+    public int GetSelectedAugmentId(int index)
+    {
+        if (index < 0 || index >= AugmentHistoryCount)
+            return -1;
+
+        return AugmentHistoryIds.Get(index);
+    }
+
+    public int GetSelectedAugmentRound(int index)
+    {
+        if (index < 0 || index >= AugmentHistoryCount)
+            return -1;
+
+        return AugmentHistoryRounds.Get(index);
     }
 }

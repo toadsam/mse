@@ -81,6 +81,7 @@ public class MatchPlayerResultRequest
 public class MatchPlayerAugmentRequest
 {
     public long augmentId;
+    public string augmentName;
     public int selectedOrder;
     public int selectedRound;
 }

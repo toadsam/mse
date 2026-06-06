@@ -194,7 +194,7 @@ public class MainMenuFlowUI : MonoBehaviour
         if (continueButton != null) continueButton.interactable = true;
 
         Debug.Log($"[MainMenu] Nickname updated. Nickname={user.nickname}");
-        LocalPlayerProfile.SetProfile(user.nickname, (byte)selectedCharacterId);
+        LocalPlayerProfile.SetProfile(user.nickname, (byte)selectedCharacterId, GetSelectedCharacterName());
 
         SetPanel(titleHeader, false);
         SetPanel(titlePanel, false);
@@ -266,6 +266,19 @@ public class MainMenuFlowUI : MonoBehaviour
                 characterNameText.text = $"Character {selectedCharacterId + 1}";
             }
         }
+    }
+
+    private string GetSelectedCharacterName()
+    {
+        if (characterNames != null &&
+            selectedCharacterId >= 0 &&
+            selectedCharacterId < characterNames.Length &&
+            !string.IsNullOrWhiteSpace(characterNames[selectedCharacterId]))
+        {
+            return characterNames[selectedCharacterId];
+        }
+
+        return $"Character {selectedCharacterId + 1}";
     }
 
     private void SetPanel(GameObject panel, bool active)

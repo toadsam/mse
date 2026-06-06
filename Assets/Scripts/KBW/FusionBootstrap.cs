@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Fusion;
 using Fusion.Sockets;
 using UnityEngine;
@@ -27,11 +28,14 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     public event Action<IReadOnlyList<SessionInfo>> SessionListUpdated;
     public event Action<string> StatusChanged;
 
+    // ë§¤ì¹˜ ì¢…ë£Œ í›„ ë£¸ì„ ë– ë‚˜ ë¡œë¹„ë¡œ ë³µê·€í–ˆìŒì„ ì•Œë¦°ë‹¤(UIê°€ ë©”ë‰´/ë¡œë¹„ íŒ¨ë„ì„ ë‹¤ì‹œ í‘œì‹œ).
+    public event Action ReturnedToLobby;
+
     private bool isBusy;
     private bool isInLobby;
 
 
-    // ÅÇ ÀÔ·Â ´©¶ô ¹æÁö¿ë
+    // ï¿½ï¿½ ï¿½Ô·ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     private bool dashPressed;
     private bool abilityPressed;
     private bool reloadPressed;
@@ -47,7 +51,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
     private void Update()
     {
-        // UI »óÅÂ¿¡¼­´Â °ÔÀÓÇÃ·¹ÀÌ ÀÔ·ÂÀ» ´©ÀûÇÏÁö ¾ÊÀ½
+        // UI ï¿½ï¿½ï¿½Â¿ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ã·ï¿½ï¿½ï¿½ ï¿½Ô·ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         if (GameManager.Instance != null && GameManager.Instance.BlocksGameplayInput)
             return;
 
@@ -173,7 +177,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             SceneManager = sceneManager
         };
 
-        // Client°¡ ¼±ÅÃÇÑ ¹æÀÌ »ç¶óÁ³À» ¶§ »õ ¹æÀ» ¸¸µé¾î¹ö¸®´Â °ÍÀ» ¹æÁö
+        // Clientï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         if (mode == GameMode.Client)
             args.EnableClientSessionCreation = false;
 
@@ -193,6 +197,74 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             StatusChanged?.Invoke($"Connection failed: {result.ShutdownReason}");
             Debug.LogError($"[FusionBootstrap] StartSession failed: {result.ShutdownReason}");
         }
+    }
+
+    // ë§¤ì¹˜ ì¢…ë£Œ í›„ í˜¸ì¶œ. í˜„ì¬ Photon ë£¸ì„ ë– ë‚˜ê³  ë¡œë¹„ ìƒíƒœë¡œ ë˜ëŒë¦°ë‹¤.
+    public async void ReturnToLobby()
+    {
+        if (isBusy)
+            return;
+
+        isBusy = true;
+        StatusChanged?.Invoke("Returning to lobby...");
+
+        if (runner != null)
+        {
+            try
+            {
+                // Only call Shutdown() when the runner is still active.
+                // If Photon already sent a Code 104 disconnect, runner.IsRunning is false
+                // and calling Shutdown() on an internally-shutting-down runner will hang
+                // indefinitely, blocking ReturnedToLobby from ever firing.
+                if (runner.IsRunning)
+                {
+                    // destroyGameObject:false is critical. The NetworkRunner is added to
+                    // THIS GameObject (the FusionBootstrap), and Shutdown()'s default
+                    // destroyGameObject:true would destroy the whole FusionBootstrap object.
+                    // That kills the lobby (LobbyMenuUI/MatchResultUI all reference this
+                    // bootstrap), so room list / create / join silently stop working and
+                    // the game appears frozen. Keep the GameObject; only tear down the runner.
+                    var shutdownTask = runner.Shutdown(destroyGameObject: false);
+                    // 5-second timeout: guards against hanging when the Photon server
+                    // has already initiated disconnect (e.g., Code 104) but IsRunning
+                    // hasn't transitioned to false yet.
+                    await Task.WhenAny(shutdownTask, Task.Delay(5000));
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[FusionBootstrap] Runner shutdown error: {e.Message}");
+            }
+            finally
+            {
+                // DestroyImmediate (not Destroy) so the old components are gone THIS frame.
+                // ReturnedToLobby?.Invoke() below re-enables the lobby panel, whose
+                // LobbyMenuUI.OnEnable calls JoinLobby() -> CreateRunnerIfNeeded() within
+                // this same call stack. A deferred Destroy would leave the shut-down runner
+                // on the GameObject while a new NetworkRunner is added, so two runners would
+                // briefly coexist on one GameObject and Fusion would misbehave.
+                if (runner != null)
+                {
+                    runner.RemoveCallbacks(this);
+                    DestroyImmediate(runner);
+                    runner = null;
+                }
+                if (sceneManager != null)
+                {
+                    DestroyImmediate(sceneManager);
+                    sceneManager = null;
+                }
+            }
+        }
+
+        spawnedPlayers.Clear();
+        cachedSessions.Clear();
+        isInLobby = false;
+        isBusy = false;
+
+        // runner ì¢…ë£Œê°€ ëë‚œ ë’¤ì— ì•Œë¦°ë‹¤. êµ¬ë…ì(UI)ê°€ ë¡œë¹„ íŒ¨ë„ì„ ë‹¤ì‹œ í™œì„±í™”í•˜ë©´
+        // LobbyMenuUI.OnEnableì´ ìƒˆ runnerë¡œ JoinLobbyë¥¼ í˜¸ì¶œí•œë‹¤.
+        ReturnedToLobby?.Invoke();
     }
 
     private string BuildRoomName(string requestedRoomName)
@@ -224,7 +296,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             if (session == null)
                 continue;
 
-            // Last Round ·Îºñ¿¡¼­ º¸¿©ÁÙ ¼ö ÀÖ´Â ¹æ¸¸ Ä³½Ì
+            // Last Round ï¿½Îºñ¿¡¼ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½æ¸¸ Ä³ï¿½ï¿½
             cachedSessions.Add(session);
         }
 
@@ -287,7 +359,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             GameManager.Instance != null &&
             GameManager.Instance.CurrentPhase == MatchPhase.Playing;
 
-        // Playing »óÅÂ°¡ ¾Æ´Ï°Å³ª UI »óÅÂ¸é ºó ÀÔ·Â¸¸ Àü´Ş
+        // Playing ï¿½ï¿½ï¿½Â°ï¿½ ï¿½Æ´Ï°Å³ï¿½ UI ï¿½ï¿½ï¿½Â¸ï¿½ ï¿½ï¿½ ï¿½Ô·Â¸ï¿½ ï¿½ï¿½ï¿½ï¿½
         if (!isPlaying || blockGameplayInput)
         {
             input.Set(data);

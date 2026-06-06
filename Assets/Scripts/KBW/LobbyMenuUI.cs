@@ -122,4 +122,19 @@ public class LobbyMenuUI : MonoBehaviour
         else
             gameObject.SetActive(false);
     }
+
+    // 매치 종료 후 로비로 복귀할 때 호출한다.
+    // HideLobby()가 끈 LobbyRoot(root)를 다시 켜고, 새 NetworkRunner로 로비에 재접속한다.
+    // LobbyMenuUI는 항상 active인 부모(LobbyPanel)에 붙어 있어 root만 다시 켜도
+    // OnEnable이 재발화되지 않으므로, 여기서 JoinLobby를 직접 호출해야 룸 리스트가 갱신된다.
+    public void ShowLobby()
+    {
+        if (root != null && !root.activeSelf)
+            root.SetActive(true);
+        else if (root == null && !gameObject.activeSelf)
+            gameObject.SetActive(true);
+
+        if (bootstrap != null)
+            bootstrap.JoinLobby();
+    }
 }
