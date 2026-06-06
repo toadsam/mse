@@ -10,7 +10,7 @@ public class MatchManager : NetworkBehaviour
     [SerializeField] private AugmentDatabase augmentDatabase;
 
     [Header("Match Rules")]
-    [SerializeField] private int playersRequiredToStart = 2; // È¥ÀÚ Å×½ºÆ® ÁßÀÌ¸é 1, ½ÇÁ¦ ¸ÖÆ¼ Å×½ºÆ®´Â 2
+    [SerializeField] private int playersRequiredToStart = 2; // È¥ï¿½ï¿½ ï¿½×½ï¿½Æ® ï¿½ï¿½ï¿½Ì¸ï¿½ 1, ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Æ¼ ï¿½×½ï¿½Æ®ï¿½ï¿½ 2
     [SerializeField] private int roundsToWin = 3;
     [SerializeField] private float roundIntroSeconds = 2.0f;
     [SerializeField] private float roundResultSeconds = 3.0f;
@@ -47,6 +47,9 @@ public class MatchManager : NetworkBehaviour
     [Networked] private TickTimer PhaseTimer { get; set; }
 
     private int lastAppliedArenaIndex = -999;
+
+    // ë§¤ì¹˜ ê²°ê³¼ë¥¼ ë°±ì—”ë“œ(MySQL)ë¡œ í˜¸ìŠ¤íŠ¸ê°€ 1íšŒë§Œ ì „ì†¡í•˜ë„ë¡ ë§‰ëŠ” í”Œë˜ê·¸.
+    private bool matchResultReported = false;
 
     public MatchPhase CurrentPhase => Phase;
 
@@ -133,6 +136,8 @@ public class MatchManager : NetworkBehaviour
         RoundWinnerSlot = -1;
         MatchWinnerSlot = -1;
 
+        matchResultReported = false;
+
         usedOfferedAugmentIds.Clear();
 
         InitializeArenaPool();
@@ -194,7 +199,7 @@ public class MatchManager : NetworkBehaviour
 
         Phase = MatchPhase.RoundIntro;
 
-        ChooseArenaForRound();       // ÀÌ ÁÙ Ãß°¡
+        ChooseArenaForRound();       // ï¿½ï¿½ ï¿½ï¿½ ï¿½ß°ï¿½
         ResetAllPlayersForRound();
 
         PhaseTimer = TickTimer.CreateFromSeconds(Runner, roundIntroSeconds);
@@ -258,6 +263,55 @@ public class MatchManager : NetworkBehaviour
 
         Phase = MatchPhase.MatchResult;
         PhaseTimer = default;
+
+        ReportMatchResultToBackend();
+    }
+
+    // ë§¤ì¹˜ ì¢…ë£Œ ì‹œ í˜¸ìŠ¤íŠ¸(StateAuthority)ê°€ ìµœì¢… ê²°ê³¼ë¥¼ ë°±ì—”ë“œë¡œ 1íšŒ ì „ì†¡í•œë‹¤.
+    // ì €ì¥ ì‹¤íŒ¨/ë¹„ë¡œê·¸ì¸ì´ì–´ë„ ê²Œì„ ê²°ê³¼ í™”ë©´ì€ ì •ìƒ ì§„í–‰ëœë‹¤(ë¡œê·¸ë§Œ ë‚¨ê¹€).
+    private void ReportMatchResultToBackend()
+    {
+        if (!HasStateAuthority)
+            return;
+
+        if (matchResultReported)
+            return;
+
+        if (MatchWinnerSlot < 0)
+            return;
+
+        List<PlayerNetwork> players = GetAllPlayers();
+        PlayerNetwork slot0 = players.Find(p => p.SlotIndex == 0);
+        PlayerNetwork slot1 = players.Find(p => p.SlotIndex == 1);
+
+        if (slot0 == null || slot1 == null)
+        {
+            Debug.LogWarning("[MatchManager] ë§¤ì¹˜ ê²°ê³¼ ì €ì¥ ìŠ¤í‚µ: ë‘ í”Œë ˆì´ì–´ë¥¼ ì°¾ì§€ ëª»í–ˆì–´(ì—°ê²° ì¢…ë£Œ ë“±).");
+            return;
+        }
+
+        long player1Id = slot0.BackendUserId;
+        long player2Id = slot1.BackendUserId;
+
+        if (player1Id <= 0 || player2Id <= 0 || player1Id == player2Id)
+        {
+            Debug.LogWarning($"[MatchManager] ë§¤ì¹˜ ê²°ê³¼ ì €ì¥ ìŠ¤í‚µ: ìœ íš¨í•˜ì§€ ì•Šì€ backend userId (p1={player1Id}, p2={player2Id}). ê²ŒìŠ¤íŠ¸/ë¹„ë¡œê·¸ì¸ ë˜ëŠ” ë¯¸ë™ê¸°í™”ì¼ ìˆ˜ ìˆì–´.");
+            return;
+        }
+
+        long winnerId = MatchWinnerSlot == 0 ? player1Id : player2Id;
+
+        // ì—¬ê¸°ê¹Œì§€ ì™”ìœ¼ë©´ ì „ì†¡ ì‹œë„ â†’ ì¤‘ë³µ ë°©ì§€ í”Œë˜ê·¸ë¥¼ ë¨¼ì € ì„¸ìš´ë‹¤.
+        matchResultReported = true;
+
+        if (MatchResultService.Instance == null)
+        {
+            Debug.LogWarning("[MatchManager] MatchResultService.Instanceê°€ ì—†ì–´ ë§¤ì¹˜ ê²°ê³¼ë¥¼ ì €ì¥í•˜ì§€ ëª»í–ˆì–´.");
+            return;
+        }
+
+        Debug.Log($"[MatchManager] ë§¤ì¹˜ ê²°ê³¼ ì €ì¥ ìš”ì²­: p1={player1Id}, p2={player2Id}, winner={winnerId}, score={Player0Wins}:{Player1Wins}");
+        MatchResultService.Instance.SaveResult(player1Id, player2Id, winnerId, Player0Wins, Player1Wins);
     }
 
     public void OnRoundEnded()
@@ -378,11 +432,11 @@ public class MatchManager : NetworkBehaviour
         if (player == null)
             return false;
 
-        // Ã¹ ¶ó¿îµå ½ÃÀÛ Àü¿¡´Â µÑ ´Ù ¼±ÅÃ
+        // Ã¹ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         if (RoundIndex == 1 && Player0Wins == 0 && Player1Wins == 0)
             return true;
 
-        // ÀÌÈÄ¿¡´Â Á÷Àü ¶ó¿îµå ÆĞÀÚ¸¸ ¼±ÅÃ
+        // ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ú¸ï¿½ ï¿½ï¿½ï¿½ï¿½
         if (RoundWinnerSlot < 0)
             return false;
 
@@ -404,14 +458,14 @@ public class MatchManager : NetworkBehaviour
             if (player.Object == null)
                 continue;
 
-            // °°Àº Runner¿¡ ¼ÓÇÑ ÇÃ·¹ÀÌ¾î¸¸ »ç¿ë
+            // ï¿½ï¿½ï¿½ï¿½ Runnerï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ã·ï¿½ï¿½Ì¾î¸¸ ï¿½ï¿½ï¿½
             if (Runner != null && player.Runner != Runner)
                 continue;
 
             players.Add(player);
         }
 
-        // ½½·Ô ¼ø¼­°¡ Ç×»ó ÀÏÁ¤ÇÏµµ·Ï Á¤·Ä
+        // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½×»ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ïµï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         players.Sort((a, b) => a.SlotIndex.CompareTo(b.SlotIndex));
 
         return players;

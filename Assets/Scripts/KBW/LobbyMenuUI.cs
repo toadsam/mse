@@ -93,12 +93,14 @@ public class LobbyMenuUI : MonoBehaviour
             return;
         }
 
+        SetStatus("Select the rooms for Play!");
+
         foreach (SessionInfo session in sessions)
         {
             if (session == null)
                 continue;
 
-            // ²Ë Âù ¹æµµ º¸¿©ÁÖ°í ½ÍÀ¸¸é ÀÌ if¹®Àº Á¦°ÅÇØµµ µË´Ï´Ù.
+            // ï¿½ï¿½ ï¿½ï¿½ ï¿½æµµ ï¿½ï¿½ï¿½ï¿½ï¿½Ö°ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ifï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Øµï¿½ ï¿½Ë´Ï´ï¿½.
             if (!session.IsOpen || session.PlayerCount >= session.MaxPlayers)
                 continue;
 

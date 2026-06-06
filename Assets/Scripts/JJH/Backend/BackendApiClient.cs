@@ -7,7 +7,8 @@ using UnityEngine.Networking;
 
 public class BackendApiClient : MonoBehaviour
 {
-    private const string DefaultBaseUrl = "http://localhost:8080";
+    private const string DefaultBaseUrl = "http://15.164.171.132:8080";
+    private const string LegacyLocalhostUrl = "http://localhost:8080";
     private const string BaseUrlKey = "LastRound.BackendBaseUrl";
 
     public static BackendApiClient Instance { get; private set; }
@@ -47,7 +48,12 @@ public class BackendApiClient : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
-        BaseUrl = PlayerPrefs.GetString(BaseUrlKey, NormalizeBaseUrl(baseUrl));
+
+        string savedBaseUrl = PlayerPrefs.GetString(BaseUrlKey, string.Empty);
+        if (string.IsNullOrWhiteSpace(savedBaseUrl) || string.Equals(NormalizeBaseUrl(savedBaseUrl), LegacyLocalhostUrl, StringComparison.OrdinalIgnoreCase))
+            BaseUrl = DefaultBaseUrl;
+        else
+            BaseUrl = savedBaseUrl;
     }
 
     public Coroutine Signup(SignupRequest request, Action<AuthResponse> onSuccess, Action<string> onError)

@@ -73,6 +73,13 @@ mono_crash.*
 *.unitypackage.meta
 *.app
 
+# Local backend and player build outputs
+/last-round-backend/build/
+/LastRound/
+/Assets/_Recovery/
+/Assets/_Recovery.meta
+/ProjectSettings/Packages/com.unity.ai.assistant/
+
 # Crashlytics generated file
 crashlytics-build.properties
 

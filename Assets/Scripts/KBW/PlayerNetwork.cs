@@ -66,6 +66,9 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public NetworkString<_32> PlayerName { get; private set; }
     [Networked] public NetworkBool HasAppliedProfile { get; private set; }
 
+    // ë°±ì—”ë“œ(MySQL) ë§¤ì¹˜ ì €ì¥ì„ ìœ„í•´, ê° í´ë¼ì´ì–¸íŠ¸ê°€ ìê¸° ë¡œê·¸ì¸ userIdë¥¼ í˜¸ìŠ¤íŠ¸(StateAuthority)ë¡œ ë™ê¸°í™”í•œë‹¤.
+    [Networked] public long BackendUserId { get; private set; }
+
     private SimpleKCC kcc;
     private Rigidbody rb;
     private PlayerView playerView;
@@ -215,6 +218,10 @@ public class PlayerNetwork : NetworkBehaviour
             LocalPlayerProfile.CharacterId,
             LocalPlayerProfile.PlayerName
         );
+
+        // ë¡œê·¸ì¸ ìƒíƒœë©´ ë‚´ backend userIdë¥¼ í˜¸ìŠ¤íŠ¸ë¡œ ì „ë‹¬(ê²ŒìŠ¤íŠ¸/ë¹„ë¡œê·¸ì¸ì€ 0 â†’ í˜¸ìŠ¤íŠ¸ê°€ ì €ì¥ì„ ìŠ¤í‚µ).
+        long localBackendUserId = BackendSession.IsLoggedIn ? BackendSession.UserId : 0;
+        RPC_SetBackendIdentity(localBackendUserId);
     }
 
     public override void Despawned(NetworkRunner runner, bool hasState)
@@ -452,7 +459,7 @@ public class PlayerNetwork : NetworkBehaviour
 
     private Vector3 GetFireOriginPosition()
     {
-        // 1¼øÀ§: ÇöÀç È°¼º Ä³¸¯ÅÍÀÇ Muzzle
+        // 1ï¿½ï¿½ï¿½ï¿½: ï¿½ï¿½ï¿½ï¿½ È°ï¿½ï¿½ Ä³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Muzzle
         if (playerVisuals != null)
         {
             Transform activeMuzzle = playerVisuals.GetActiveMuzzle(CharacterId);
@@ -460,11 +467,11 @@ public class PlayerNetwork : NetworkBehaviour
                 return activeMuzzle.position;
         }
 
-        // 2¼øÀ§: ±âÁ¸ fireOrigin
+        // 2ï¿½ï¿½ï¿½ï¿½: ï¿½ï¿½ï¿½ï¿½ fireOrigin
         if (fireOrigin != null)
             return fireOrigin.position;
 
-        // 3¼øÀ§: Ä«¸Ş¶ó ¾ŞÄ¿°¡ ¾Æ´Ï¶ó ÇÃ·¹ÀÌ¾î ·çÆ® ±âÁØ fallback
+        // 3ï¿½ï¿½ï¿½ï¿½: Ä«ï¿½Ş¶ï¿½ ï¿½ï¿½Ä¿ï¿½ï¿½ ï¿½Æ´Ï¶ï¿½ ï¿½Ã·ï¿½ï¿½Ì¾ï¿½ ï¿½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½ fallback
         Quaternion yawRotation = Quaternion.Euler(0f, LookYaw, 0f);
         return transform.position + yawRotation * fallbackMuzzleLocalOffset;
     }
@@ -579,17 +586,17 @@ public class PlayerNetwork : NetworkBehaviour
 
     private void UseAbility()
     {
-        // ³ªÁß¿¡ Ä³¸¯ÅÍº° ´É·Â ¿¬°á
+        // ï¿½ï¿½ï¿½ß¿ï¿½ Ä³ï¿½ï¿½ï¿½Íºï¿½ ï¿½É·ï¿½ ï¿½ï¿½ï¿½ï¿½
     }
 
     private void Reload()
     {
-        // ³ªÁß¿¡ ÀçÀåÀü ¿¬°á
+        // ï¿½ï¿½ï¿½ß¿ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
     }
 
     private void HoldAltFire()
     {
-        // ³ªÁß¿¡ ¿ìÅ¬¸¯ Á¶ÁØ/º¸Á¶»ç°İ ¿¬°á
+        // ï¿½ï¿½ï¿½ß¿ï¿½ ï¿½ï¿½Å¬ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
     }
 
     private void TriggerJumpAnimation()
@@ -706,12 +713,12 @@ public class PlayerNetwork : NetworkBehaviour
 
         if (count <= 1)
         {
-            // Rapid BarrelÃ³·³ ´Ü¹ßÀÎµ¥ ÆÛÁü¸¸ ÀÖ´Â °æ¿ì
+            // Rapid BarrelÃ³ï¿½ï¿½ ï¿½Ü¹ï¿½ï¿½Îµï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½
             yawOffset = Random.Range(-spreadAngle * 0.5f, spreadAngle * 0.5f);
         }
         else
         {
-            // Multi ShotÃ³·³ ¿©·¯ ¹ßÀÌ¸é ±Õµî ºĞ»ê
+            // Multi ShotÃ³ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ì¸ï¿½ ï¿½Õµï¿½ ï¿½Ğ»ï¿½
             float t = count == 1 ? 0.5f : index / (float)(count - 1);
             yawOffset = Mathf.Lerp(-spreadAngle * 0.5f, spreadAngle * 0.5f, t);
         }
@@ -745,6 +752,12 @@ public class PlayerNetwork : NetworkBehaviour
         CharacterId = requestedCharacterId;
         PlayerName = safeName;
         HasAppliedProfile = true;
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    public void RPC_SetBackendIdentity(long backendUserId)
+    {
+        BackendUserId = backendUserId < 0 ? 0 : backendUserId;
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]

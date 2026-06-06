@@ -4,24 +4,33 @@ using UnityEngine.UI;
 
 public class MainMenuFlowUI : MonoBehaviour
 {
+    [Header("Header")]
+    [Tooltip("Ìå®ÎÑê Î∞ñ ÏÉÅÎã® Ï§ëÏïôÏóê Ìï≠ÏÉÅ ÌëúÏãúÎêòÎäî LAST ROUND ÌÉÄÏù¥ÌãÄ Í∑∏Î£πÏûÖÎãàÎã§.")]
+    [SerializeField] private GameObject titleHeader;
+
     [Header("Panels")]
     [SerializeField] private GameObject titlePanel;
     [SerializeField] private GameObject profilePanel;
+    [SerializeField] private GameObject characterSelectPanel;
     [SerializeField] private GameObject lobbyPanel;
 
     [Header("World Preview")]
-    [Tooltip("Canvas π€ ø˘µÂø° πËƒ°«— ƒ≥∏Ø≈Õ «¡∏Æ∫‰ ¿¸√º ∑Á∆Æ¿‘¥œ¥Ÿ.")]
+    [Tooltip("Canvas Î∞ñ ÏõîÎìúÏóê Î∞∞ÏπòÎêú Ï∫êÎ¶≠ÌÑ∞ ÌîÑÎ¶¨Î∑∞ Î£®Ìä∏ÏûÖÎãàÎã§.")]
     [SerializeField] private GameObject characterPreviewArea;
 
     [Header("Title")]
     [SerializeField] private Button playButton;
+    [SerializeField] private Button settingButton;
     [SerializeField] private Button quitButton;
 
     [Header("Profile")]
-    [SerializeField] private TMP_InputField nameInput;
-    [SerializeField] private TMP_Text characterNameText;
+    [SerializeField] private Button profileToCharacterButton;
+    [SerializeField] private Button profileBackButton;
     [SerializeField] private TMP_Text statusText;
 
+    [Header("Character Select")]
+    [SerializeField] private TMP_InputField nameInput;
+    [SerializeField] private TMP_Text characterNameText;
     [SerializeField] private Button prevCharacterButton;
     [SerializeField] private Button nextCharacterButton;
     [SerializeField] private Button continueButton;
@@ -32,14 +41,24 @@ public class MainMenuFlowUI : MonoBehaviour
     [SerializeField] private string[] characterNames;
 
     private int selectedCharacterId;
+    private bool _waitingForNicknameUpdate;
+
+    private GameObject _popupPanel;
+    private TMP_Text _popupMessageText;
 
     private void Awake()
     {
         if (playButton != null)
             playButton.onClick.AddListener(ShowProfile);
 
+        if (settingButton != null)
+            settingButton.onClick.AddListener(OnSettingClicked);
+
         if (quitButton != null)
             quitButton.onClick.AddListener(QuitGame);
+
+        if (profileBackButton != null)
+            profileBackButton.onClick.AddListener(ShowTitle);
 
         if (prevCharacterButton != null)
             prevCharacterButton.onClick.AddListener(SelectPreviousCharacter);
@@ -48,10 +67,24 @@ public class MainMenuFlowUI : MonoBehaviour
             nextCharacterButton.onClick.AddListener(SelectNextCharacter);
 
         if (continueButton != null)
-            continueButton.onClick.AddListener(ConfirmProfileAndShowLobby);
+            continueButton.onClick.AddListener(OnContinueClicked);
 
         if (backButton != null)
-            backButton.onClick.AddListener(ShowTitle);
+            backButton.onClick.AddListener(ShowProfile);
+    }
+
+    private void OnEnable()
+    {
+        if (AuthManager.Instance == null) return;
+        AuthManager.Instance.UserUpdated += OnNicknameUpdated;
+        AuthManager.Instance.AuthFailed  += OnNicknameUpdateFailed;
+    }
+
+    private void OnDisable()
+    {
+        if (AuthManager.Instance == null) return;
+        AuthManager.Instance.UserUpdated -= OnNicknameUpdated;
+        AuthManager.Instance.AuthFailed  -= OnNicknameUpdateFailed;
     }
 
     private void Start()
@@ -59,12 +92,48 @@ public class MainMenuFlowUI : MonoBehaviour
         selectedCharacterId = 0;
         RefreshCharacterPreview();
         ShowTitle();
+        ResolvePopupRefs();
+
+        if (profileToCharacterButton != null)
+            profileToCharacterButton.gameObject.SetActive(false);
+
+        if (profilePanel != null && profilePanel.TryGetComponent(out ProfileAuthUI authUI))
+            authUI.OnProceedRequested += ShowCharacterSelect;
+    }
+
+    private void ResolvePopupRefs()
+    {
+        Canvas canvas = FindFirstObjectByType<Canvas>();
+        if (canvas == null) return;
+
+        Transform popupT = canvas.transform.Find("AuthPopupPanel");
+        if (popupT == null) return;
+
+        _popupPanel = popupT.gameObject;
+
+        Transform msgT = popupT.Find("PopupBox/AuthPopupMessage");
+        if (msgT != null)
+            _popupMessageText = msgT.GetComponent<TMP_Text>();
+    }
+
+    private void ShowPopup(string message)
+    {
+        if (_popupPanel == null || _popupMessageText == null)
+            ResolvePopupRefs();
+
+        if (_popupMessageText != null)
+            _popupMessageText.text = message;
+
+        if (_popupPanel != null)
+            _popupPanel.SetActive(true);
     }
 
     private void ShowTitle()
     {
+        SetPanel(titleHeader, true);
         SetPanel(titlePanel, true);
         SetPanel(profilePanel, false);
+        SetPanel(characterSelectPanel, false);
         SetPanel(lobbyPanel, false);
 
         SetPanel(characterPreviewArea, false);
@@ -72,29 +141,78 @@ public class MainMenuFlowUI : MonoBehaviour
 
     private void ShowProfile()
     {
+        SetPanel(titleHeader, true);
         SetPanel(titlePanel, false);
         SetPanel(profilePanel, true);
+        SetPanel(characterSelectPanel, false);
         SetPanel(lobbyPanel, false);
 
-        SetPanel(characterPreviewArea, true);
-        RefreshCharacterPreview();
+        SetPanel(characterPreviewArea, false);
 
         if (statusText != null)
             statusText.text = "";
     }
 
-    private void ConfirmProfileAndShowLobby()
+    private void ShowCharacterSelect()
     {
-        string playerName = nameInput != null ? nameInput.text : "";
-        LocalPlayerProfile.SetProfile(playerName, (byte)selectedCharacterId);
-
-        Debug.Log($"[MainMenu] Profile saved. Name={LocalPlayerProfile.PlayerName}, CharacterId={LocalPlayerProfile.CharacterId}");
-
+        SetPanel(titleHeader, true);
         SetPanel(titlePanel, false);
         SetPanel(profilePanel, false);
-        SetPanel(lobbyPanel, true);
+        SetPanel(characterSelectPanel, true);
+        SetPanel(lobbyPanel, false);
 
+        SetPanel(characterPreviewArea, true);
+        RefreshCharacterPreview();
+    }
+
+    private void OnContinueClicked()
+    {
+        string playerName = nameInput != null ? nameInput.text.Trim() : "";
+
+        if (string.IsNullOrWhiteSpace(playerName))
+        {
+            ShowPopup("Please enter a nickname.");
+            return;
+        }
+
+        if (AuthManager.Instance == null || !BackendSession.IsLoggedIn)
+        {
+            ShowPopup("Not logged in. Please log in first.");
+            return;
+        }
+
+        if (continueButton != null) continueButton.interactable = false;
+        _waitingForNicknameUpdate = true;
+        AuthManager.Instance.UpdateNickname(playerName);
+    }
+
+    private void OnNicknameUpdated(UserMeResponse user)
+    {
+        if (!_waitingForNicknameUpdate) return;
+        _waitingForNicknameUpdate = false;
+
+        if (continueButton != null) continueButton.interactable = true;
+
+        Debug.Log($"[MainMenu] Nickname updated. Nickname={user.nickname}");
+        LocalPlayerProfile.SetProfile(user.nickname, (byte)selectedCharacterId);
+
+        SetPanel(titleHeader, false);
+        SetPanel(titlePanel, false);
+        SetPanel(profilePanel, false);
+        SetPanel(characterSelectPanel, false);
+        SetPanel(lobbyPanel, true);
         SetPanel(characterPreviewArea, false);
+    }
+
+    private void OnNicknameUpdateFailed(string error)
+    {
+        if (!_waitingForNicknameUpdate) return;
+        _waitingForNicknameUpdate = false;
+
+        if (continueButton != null) continueButton.interactable = true;
+
+        Debug.LogWarning($"[MainMenu] Failed to update nickname: {error}");
+        ShowPopup($"Failed to update nickname.\n{error}");
     }
 
     private void SelectPreviousCharacter()
@@ -154,6 +272,11 @@ public class MainMenuFlowUI : MonoBehaviour
     {
         if (panel != null)
             panel.SetActive(active);
+    }
+
+    private void OnSettingClicked()
+    {
+        Debug.Log("Setting button clicked");
     }
 
     private void QuitGame()
