@@ -62,6 +62,14 @@ public class PlayerNetwork : NetworkBehaviour
     [SerializeField] private Animator animator;
     [SerializeField] private bool useAnimator = true;
 
+    [Header("Audio")]
+    [SerializeField] private float shootSfxVolume = 1f;
+    [SerializeField] private float footstepSfxVolume = 0.7f;
+    [SerializeField] private float footstepInterval = 0.42f;
+    [SerializeField] private float footstepMoveThreshold = 0.15f;
+    [SerializeField] private float jumpSfxVolume = 0.8f;
+    [SerializeField] private float dashSfxVolume = 0.85f;
+
     [Header("Projectile Rifle")]
     [SerializeField] private NetworkPrefabRef rifleProjectilePrefab;
     [SerializeField] private float projectileSpeed = 35f;
@@ -152,6 +160,7 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public bool IsGroundedNet { get; set; }
     [Networked] public bool IsDead { get; set; }
     [Networked] public int JumpAnimCount { get; set; }
+    [Networked] public int DashAudioCount { get; set; }
     [Networked] public int MoveState { get; set; }
 
     [Networked] public int OfferedAugmentId0 { get; private set; }
@@ -181,6 +190,10 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public NetworkBool CanSelectAugmentNet { get; private set; }
 
     private int lastAppliedJumpAnimCount = -1;
+    private int lastAudioFireAnimCount = -1;
+    private int lastAudioJumpAnimCount = -1;
+    private int lastAudioDashCount = -1;
+    private float nextFootstepTime;
 
     private int pendingRoundTeleportFrames;
     private const int RoundTeleportApplyFrames = 3;
@@ -236,6 +249,7 @@ public class PlayerNetwork : NetworkBehaviour
         IsGroundedNet = false;
         IsDead = false;
         JumpAnimCount = 0;
+        DashAudioCount = 0;
         MoveState = 0;
 
         FireCooldown = default;
@@ -318,6 +332,10 @@ public class PlayerNetwork : NetworkBehaviour
         lastAppliedRoundTeleportSeq = RoundTeleportSeq;
         lastAppliedJumpAnimCount = JumpAnimCount;
         lastAppliedFireAnimCount = FireAnimCount;
+        lastAudioJumpAnimCount = JumpAnimCount;
+        lastAudioFireAnimCount = FireAnimCount;
+        lastAudioDashCount = DashAudioCount;
+        nextFootstepTime = Time.time + Random.Range(0f, footstepInterval);
 
         if (!HasInputAuthority)
             return;
@@ -350,6 +368,7 @@ public class PlayerNetwork : NetworkBehaviour
         playerVisuals?.Refresh(CharacterId);
         RefreshAnimatorReference();
         UpdateAnimator();
+        UpdateAudioFeedback();
     }
 
     public override void FixedUpdateNetwork()
@@ -539,6 +558,89 @@ public class PlayerNetwork : NetworkBehaviour
             animator = GetComponentInChildren<Animator>(true);
     }
 
+    private void UpdateAudioFeedback()
+    {
+        UpdateFireAudio();
+        UpdateJumpAudio();
+        UpdateDashAudio();
+        UpdateFootstepAudio();
+    }
+
+    private void UpdateFireAudio()
+    {
+        if (FireAnimCount < lastAudioFireAnimCount)
+        {
+            lastAudioFireAnimCount = FireAnimCount;
+            return;
+        }
+
+        int newShotCount = FireAnimCount - lastAudioFireAnimCount;
+        if (newShotCount <= 0)
+            return;
+
+        int playCount = Mathf.Min(newShotCount, 3);
+        for (int i = 0; i < playCount; i++)
+            GameAudio.PlaySfxAt(GameAudioClipId.Shoot, GetFireOriginPosition(), shootSfxVolume, HasInputAuthority ? 0.35f : 0.85f);
+
+        lastAudioFireAnimCount = FireAnimCount;
+    }
+
+    private void UpdateJumpAudio()
+    {
+        if (JumpAnimCount < lastAudioJumpAnimCount)
+        {
+            lastAudioJumpAnimCount = JumpAnimCount;
+            return;
+        }
+
+        if (JumpAnimCount == lastAudioJumpAnimCount)
+            return;
+
+        GameAudio.PlaySfxAt(GameAudioClipId.Jump, transform.position, jumpSfxVolume, HasInputAuthority ? 0.35f : 0.8f);
+        lastAudioJumpAnimCount = JumpAnimCount;
+    }
+
+    private void UpdateFootstepAudio()
+    {
+        if (!ShouldPlayFootstepAudio())
+        {
+            nextFootstepTime = Time.time + Mathf.Max(0.05f, footstepInterval);
+            return;
+        }
+
+        if (Time.time < nextFootstepTime)
+            return;
+
+        GameAudio.PlaySfxAt(GameAudioClipId.Footstep, transform.position, footstepSfxVolume, HasInputAuthority ? 0.35f : 0.85f);
+
+        float moveMultiplier = Mathf.Lerp(1.15f, 0.75f, Mathf.Clamp01(MoveAmount));
+        nextFootstepTime = Time.time + Mathf.Max(0.05f, footstepInterval * moveMultiplier);
+    }
+
+    private bool ShouldPlayFootstepAudio()
+    {
+        if (IsDead || !IsGroundedNet || MoveState == 0 || MoveAmount < footstepMoveThreshold)
+            return false;
+
+        MatchManager match = MatchManager.Instance;
+        return match == null || match.CurrentPhase == MatchPhase.Playing;
+    }
+
+    private void UpdateDashAudio()
+    {
+        if (DashAudioCount < lastAudioDashCount)
+        {
+            lastAudioDashCount = DashAudioCount;
+            return;
+        }
+
+        if (DashAudioCount == lastAudioDashCount)
+            return;
+
+        GameAudio.PlaySfxAt(GameAudioClipId.Dash, transform.position, dashSfxVolume, HasInputAuthority ? 0.35f : 0.85f);
+        lastAudioDashCount = DashAudioCount;
+    }
+
     private void StartDash(Vector3 dir)
     {
         if (dir.sqrMagnitude < 0.0001f)
@@ -553,6 +655,7 @@ public class PlayerNetwork : NetworkBehaviour
         float totalDashDistance = dashDistance + DashDistanceBonus;
         float effectiveDuration = totalDashDistance / dashSpeed;
         DashActiveTimer = TickTimer.CreateFromSeconds(Runner, effectiveDuration);
+        DashAudioCount++;
     }
 
     private int CalculateMoveState(Vector2 move)
@@ -814,6 +917,7 @@ public class PlayerNetwork : NetworkBehaviour
 
         IsDead = false;
         JumpAnimCount = 0;
+        DashAudioCount = 0;
 
         if (playerHealth != null)
             playerHealth.ResetHealth();
