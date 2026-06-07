@@ -120,7 +120,7 @@ public class ProfileAuthUI : MonoBehaviour
     {
         SetStatus(string.Empty);
         Debug.LogWarning($"[ProfileAuthUI] Auth failed: {error}");
-        ShowPopup(ErrorMessageFormatter.ToFriendly(error), proceed: false);
+        ShowPopup(ErrorMessageFormatter.ToAuthFriendly(error, _lastActionWasLogin), proceed: false);
     }
 
     private void ShowPopup(string message, bool proceed)
