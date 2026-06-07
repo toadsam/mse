@@ -30,6 +30,9 @@ public class AudioSettingsUI : MonoBehaviour
     private Text sfxValueText;
     private Button closeButton;
     private AudioSource managedBgmSource;
+    private MatchPhase lastAudioPhase;
+    private int lastStartSoundRound = -1;
+    private bool hasAudioPhase;
 
     private float bgmVolume = 1f;
     private float sfxVolume = 1f;
@@ -77,6 +80,8 @@ public class AudioSettingsUI : MonoBehaviour
 
         if (isOpen && Input.GetKeyDown(KeyCode.Escape))
             Close();
+
+        UpdatePhaseAudio();
     }
 
     public static void OpenSettings()
@@ -201,10 +206,85 @@ public class AudioSettingsUI : MonoBehaviour
         managedBgmSource.spatialBlend = 0f;
 
         if (managedBgmSource.clip == null)
-            managedBgmSource.clip = GameAudio.GetBgmClip();
+            managedBgmSource.clip = GameAudio.GetBgmClip(GetBgmClipIdForPhase(GetCurrentPhase()));
 
         if (managedBgmSource.clip != null && !managedBgmSource.isPlaying)
             managedBgmSource.Play();
+    }
+
+    private void UpdatePhaseAudio()
+    {
+        MatchPhase currentPhase = GetCurrentPhase();
+
+        if (!hasAudioPhase)
+        {
+            hasAudioPhase = true;
+            lastAudioPhase = currentPhase;
+            ApplyBgmForPhase(currentPhase);
+            return;
+        }
+
+        if (currentPhase == lastAudioPhase)
+            return;
+
+        MatchPhase previousPhase = lastAudioPhase;
+        lastAudioPhase = currentPhase;
+
+        ApplyBgmForPhase(currentPhase);
+        TryPlayStartSound(previousPhase, currentPhase);
+    }
+
+    private MatchPhase GetCurrentPhase()
+    {
+        if (MatchManager.Instance != null)
+            return MatchManager.Instance.CurrentPhase;
+
+        if (GameManager.Instance != null)
+            return GameManager.Instance.CurrentPhase;
+
+        return MatchPhase.Lobby;
+    }
+
+    private void ApplyBgmForPhase(MatchPhase phase)
+    {
+        if (managedBgmSource == null)
+            return;
+
+        AudioClip clip = GameAudio.GetBgmClip(GetBgmClipIdForPhase(phase));
+        if (clip == null)
+            return;
+
+        if (managedBgmSource.clip == clip && managedBgmSource.isPlaying)
+            return;
+
+        managedBgmSource.clip = clip;
+        managedBgmSource.loop = true;
+        managedBgmSource.Play();
+
+        baseBgmVolumes[managedBgmSource] = 1f;
+        ApplyBgmVolumeToScene();
+    }
+
+    private static GameBgmClipId GetBgmClipIdForPhase(MatchPhase phase)
+    {
+        return phase == MatchPhase.Lobby ? GameBgmClipId.Lobby : GameBgmClipId.Game;
+    }
+
+    private void TryPlayStartSound(MatchPhase previousPhase, MatchPhase currentPhase)
+    {
+        bool startedRound =
+            currentPhase == MatchPhase.RoundIntro ||
+            (previousPhase != MatchPhase.Playing && currentPhase == MatchPhase.Playing);
+
+        if (!startedRound)
+            return;
+
+        int round = MatchManager.Instance != null ? MatchManager.Instance.RoundIndex : 0;
+        if (round == lastStartSoundRound)
+            return;
+
+        lastStartSoundRound = round;
+        GameAudio.PlaySfx2D(GameAudioClipId.MatchStart);
     }
 
     private void LoadVolumes()
@@ -230,6 +310,7 @@ public class AudioSettingsUI : MonoBehaviour
         PlayerPrefs.SetFloat(SfxVolumeKey, sfxVolume);
         PlayerPrefs.Save();
 
+        GameAudio.ApplySfxVolume();
         UpdateVolumeTexts();
     }
 
@@ -285,6 +366,8 @@ public class AudioSettingsUI : MonoBehaviour
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         EnsureEventSystem();
+        EnsureManagedBgmSource();
+        ApplyBgmForPhase(GetCurrentPhase());
         ApplyAllVolumes();
     }
 
@@ -337,7 +420,15 @@ public enum GameAudioClipId
     HitMarker,
     Damage,
     Jump,
-    Dash
+    Dash,
+    MatchStart
+}
+
+public enum GameBgmClipId
+{
+    Default,
+    Lobby,
+    Game
 }
 
 public static class GameAudio
@@ -346,13 +437,32 @@ public static class GameAudio
     private const string SfxResourcePath = "Audio/JJH/SFX";
 
     private static readonly Dictionary<GameAudioClipId, AudioClip[]> sfxCache = new();
-    private static AudioClip[] bgmCache;
+    private static readonly Dictionary<GameBgmClipId, AudioClip[]> bgmCache = new();
+    private static readonly List<GameAudioSfxSource> activeSfxSources = new();
     private static AudioSource shared2DSource;
 
-    public static AudioClip GetBgmClip()
+    public static AudioClip GetBgmClip(GameBgmClipId clipId = GameBgmClipId.Default)
     {
-        AudioClip[] clips = GetBgmClips();
+        AudioClip[] clips = GetBgmClips(clipId);
         return clips.Length > 0 ? clips[0] : null;
+    }
+
+    public static void ApplySfxVolume()
+    {
+        if (shared2DSource != null)
+            shared2DSource.volume = AudioSettingsUI.SfxVolume;
+
+        for (int i = activeSfxSources.Count - 1; i >= 0; i--)
+        {
+            GameAudioSfxSource source = activeSfxSources[i];
+            if (source == null)
+            {
+                activeSfxSources.RemoveAt(i);
+                continue;
+            }
+
+            source.ApplyVolume();
+        }
     }
 
     public static void PlaySfx2D(GameAudioClipId clipId, float volumeScale = 1f)
@@ -371,7 +481,8 @@ public static class GameAudio
             return;
 
         AudioSource source = GetShared2DSource();
-        source.PlayOneShot(clip, GetScaledSfxVolume(volumeScale));
+        source.volume = AudioSettingsUI.SfxVolume;
+        source.PlayOneShot(clip, Mathf.Max(0f, volumeScale));
     }
 
     public static void PlayClipAt(AudioClip clip, Vector3 position, float volumeScale = 1f, float spatialBlend = 0.75f)
@@ -384,24 +495,54 @@ public static class GameAudio
 
         AudioSource source = soundObject.AddComponent<AudioSource>();
         source.clip = clip;
-        source.volume = GetScaledSfxVolume(volumeScale);
         source.spatialBlend = Mathf.Clamp01(spatialBlend);
         source.rolloffMode = AudioRolloffMode.Linear;
         source.minDistance = 1.5f;
         source.maxDistance = 35f;
+
+        GameAudioSfxSource trackedSource = soundObject.AddComponent<GameAudioSfxSource>();
+        trackedSource.Init(source, volumeScale);
+
         source.Play();
 
         Object.Destroy(soundObject, clip.length + 0.25f);
     }
 
-    private static AudioClip[] GetBgmClips()
+    internal static void RegisterSfxSource(GameAudioSfxSource source)
     {
-        if (bgmCache != null)
-            return bgmCache;
+        if (source != null && !activeSfxSources.Contains(source))
+            activeSfxSources.Add(source);
+    }
 
-        bgmCache = Resources.LoadAll<AudioClip>(BgmResourcePath);
-        SortByName(bgmCache);
-        return bgmCache;
+    internal static void UnregisterSfxSource(GameAudioSfxSource source)
+    {
+        if (source != null)
+            activeSfxSources.Remove(source);
+    }
+
+    private static AudioClip[] GetBgmClips(GameBgmClipId clipId)
+    {
+        if (bgmCache.TryGetValue(clipId, out AudioClip[] cached))
+            return cached;
+
+        List<AudioClip> clips = new List<AudioClip>();
+
+        switch (clipId)
+        {
+            case GameBgmClipId.Lobby:
+                AddUniqueClips(clips, Resources.LoadAll<AudioClip>($"{BgmResourcePath}/Lobby"));
+                break;
+            case GameBgmClipId.Game:
+                AddUniqueClips(clips, Resources.LoadAll<AudioClip>($"{BgmResourcePath}/Game"));
+                break;
+        }
+
+        AddUniqueClips(clips, Resources.LoadAll<AudioClip>(BgmResourcePath));
+
+        AudioClip[] result = clips.ToArray();
+        SortByName(result);
+        bgmCache[clipId] = result;
+        return result;
     }
 
     private static AudioClip GetSfxClip(GameAudioClipId clipId)
@@ -482,6 +623,8 @@ public static class GameAudio
                 return "Jump";
             case GameAudioClipId.Dash:
                 return "Dash";
+            case GameAudioClipId.MatchStart:
+                return "MatchStart";
             default:
                 return clipId.ToString();
         }
@@ -503,6 +646,8 @@ public static class GameAudio
                 return new[] { "jump" };
             case GameAudioClipId.Dash:
                 return new[] { "dash", "dodge" };
+            case GameAudioClipId.MatchStart:
+                return new[] { "matchstart", "gamestart", "roundstart", "start" };
             default:
                 return new[] { clipId.ToString() };
         }
@@ -548,5 +693,31 @@ public static class GameAudio
     private static void SortByName(AudioClip[] clips)
     {
         System.Array.Sort(clips, (a, b) => string.CompareOrdinal(a.name, b.name));
+    }
+}
+
+public sealed class GameAudioSfxSource : MonoBehaviour
+{
+    private AudioSource source;
+    private float baseVolume = 1f;
+
+    public void Init(AudioSource audioSource, float volumeScale)
+    {
+        source = audioSource;
+        baseVolume = Mathf.Max(0f, volumeScale);
+
+        GameAudio.RegisterSfxSource(this);
+        ApplyVolume();
+    }
+
+    public void ApplyVolume()
+    {
+        if (source != null)
+            source.volume = Mathf.Clamp01(AudioSettingsUI.SfxVolume * baseVolume);
+    }
+
+    private void OnDestroy()
+    {
+        GameAudio.UnregisterSfxSource(this);
     }
 }

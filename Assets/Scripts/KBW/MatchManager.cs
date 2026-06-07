@@ -64,7 +64,8 @@ public class MatchManager : NetworkBehaviour
     // 留ㅼ튂 寃곌낵瑜?諛깆뿏??MySQL)濡??몄뒪?멸? 1?뚮쭔 ?꾩넚?섎룄濡?留됰뒗 ?뚮옒洹?
     private bool matchResultReported = false;
 
-    public MatchPhase CurrentPhase => Phase;
+    public bool IsNetworkSpawned { get; private set; }
+    public MatchPhase CurrentPhase => IsNetworkSpawned ? Phase : MatchPhase.Lobby;
 
     [SerializeField] private bool submitMatchResultToBackend = true;
     [SerializeField] private float returnToLobbyAfterMatchSeconds = 6f;
@@ -101,6 +102,8 @@ public class MatchManager : NetworkBehaviour
             RoundWinnerSlot = -1;
             MatchWinnerSlot = -1;
         }
+
+        IsNetworkSpawned = true;
 
         GameManager.Instance?.RegisterMatchManager(this);
         GameManager.Instance?.SyncCursorWithPhase();
@@ -776,6 +779,8 @@ public class MatchManager : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        IsNetworkSpawned = false;
+
         if (Instance == this)
             Instance = null;
 

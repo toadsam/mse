@@ -19,7 +19,7 @@ public class GameManager : MonoBehaviour
     public PlayerNetwork LocalPlayer => localPlayer;
     public PlayerView LocalPlayerView => localPlayerView;
     public MatchPhase CurrentPhase =>
-        matchManager != null ? matchManager.Phase : MatchPhase.Lobby;
+        matchManager != null ? matchManager.CurrentPhase : MatchPhase.Lobby;
 
     public bool BlocksGameplayInput =>
         cursorController != null && cursorController.BlocksGameplayInput;
