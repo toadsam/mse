@@ -20,6 +20,9 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private PooledNetworkObjectProvider objectProvider;
     [SerializeField] private int maxPooledObjectsPerPrefab = 64;
 
+    [SerializeField] private bool autoRejoinLobbyAfterReturn = true;
+    private Coroutine rejoinLobbyRoutine;
+
     private NetworkRunner runner;
     private NetworkSceneManagerDefault sceneManager;
     public event Action GameSessionStarted;
@@ -69,12 +72,26 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         aug3Pressed |= Input.GetKeyDown(KeyCode.Alpha3);
     }
 
-    private void CreateRunnerIfNeeded()
+    private bool CreateRunnerIfNeeded()
     {
         if (runner != null)
-            return;
+            return true;
+
+        NetworkRunner existingRunner = GetComponent<NetworkRunner>();
+        if (existingRunner != null)
+        {
+            Debug.LogWarning("[FusionBootstrap] NetworkRunner component is still on this object. Wait before creating a new runner.");
+            return false;
+        }
 
         runner = gameObject.AddComponent<NetworkRunner>();
+
+        if (runner == null)
+        {
+            Debug.LogError("[FusionBootstrap] Failed to create NetworkRunner.");
+            return false;
+        }
+
         runner.ProvideInput = true;
         runner.AddCallbacks(this);
 
@@ -88,6 +105,8 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             objectProvider = gameObject.AddComponent<PooledNetworkObjectProvider>();
 
         objectProvider.SetMaxPoolCount(maxPooledObjectsPerPrefab);
+
+        return true;
     }
 
     public async void JoinLobby()
@@ -95,7 +114,11 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         if (isBusy)
             return;
 
-        CreateRunnerIfNeeded();
+        if (!CreateRunnerIfNeeded())
+        {
+            ScheduleRejoinLobbyAfterCleanup();
+            return;
+        }
 
         if (isInLobby)
         {
@@ -168,7 +191,11 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
     private async void StartSession(GameMode mode, string roomName)
     {
-        CreateRunnerIfNeeded();
+        if (!CreateRunnerIfNeeded())
+        {
+            StatusChanged?.Invoke("Network cleanup is still running. Please wait a moment.");
+            return;
+        }
 
         isBusy = true;
         StatusChanged?.Invoke(mode == GameMode.Host
@@ -279,19 +306,23 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         UpdateRoomAvailability();
     }
 
-    public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
+    public void OnPlayerLeft(NetworkRunner callbackRunner, PlayerRef player)
     {
+        Debug.Log($"[FusionBootstrap] OnPlayerLeft: {player}");
+
         bool wasInMatch =
             MatchManager.Instance != null &&
             MatchManager.Instance.CurrentPhase != MatchPhase.Lobby;
 
+        Debug.Log($"[FusionBootstrap] OnPlayerLeft / wasInMatch={wasInMatch}");
+
         if (spawnedPlayers.TryGetValue(player, out NetworkObject obj))
         {
-            runner.Despawn(obj);
+            callbackRunner.Despawn(obj);
             spawnedPlayers.Remove(player);
         }
 
-        runner.SetPlayerObject(player, null);
+        callbackRunner.SetPlayerObject(player, null);
 
         if (wasInMatch)
         {
@@ -404,16 +435,24 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
     public void ReturnToLobbyAfter(float seconds, string message)
     {
+        Debug.Log($"[FusionBootstrap] ReturnToLobbyAfter scheduled. Seconds={seconds}, Message={message}");
+
         if (returnToLobbyRoutine != null)
+        {
             StopCoroutine(returnToLobbyRoutine);
+            returnToLobbyRoutine = null;
+        }
 
         returnToLobbyRoutine = StartCoroutine(ReturnToLobbyAfterRoutine(seconds, message));
     }
 
     private IEnumerator ReturnToLobbyAfterRoutine(float seconds, string message)
     {
-        yield return new WaitForSeconds(Mathf.Max(0.1f, seconds));
+        yield return new WaitForSecondsRealtime(Mathf.Max(0.1f, seconds));
 
+        Debug.Log("[FusionBootstrap] ReturnToLobbyAfterRoutine expired.");
+
+        returnToLobbyRoutine = null;
         ShutdownAndReturnToLobby(message);
     }
 
@@ -424,46 +463,82 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
         isReturningToLobby = true;
 
+        Debug.Log($"[FusionBootstrap] ShutdownAndReturnToLobby: {message}");
+
         if (returnToLobbyRoutine != null)
         {
             StopCoroutine(returnToLobbyRoutine);
             returnToLobbyRoutine = null;
         }
 
-        StatusChanged?.Invoke(message);
+        // 먼저 화면을 로비로 돌립니다.
+        ReturnToLobbyUI(message);
 
         NetworkRunner oldRunner = runner;
 
-        if (oldRunner != null)
+        if (oldRunner == null)
         {
-            await oldRunner.Shutdown();
+            spawnedPlayers.Clear();
+            cachedSessions.Clear();
+            isBusy = false;
+            isInLobby = false;
+            ClearBufferedInput();
+
+            isReturningToLobby = false;
+            return;
         }
-        else
+
+        await oldRunner.Shutdown();
+
+        StartCoroutine(ShutdownFallbackCheck(oldRunner, message));
+    }
+
+    private IEnumerator ShutdownFallbackCheck(NetworkRunner oldRunner, string message)
+    {
+        yield return null;
+
+        if (runner == oldRunner)
         {
+            Debug.LogWarning("[FusionBootstrap] OnShutdown fallback cleanup.");
+            CleanupRunner(oldRunner);
             ReturnToLobbyUI(message);
             isReturningToLobby = false;
+
+            ScheduleRejoinLobbyAfterCleanup();
         }
     }
 
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
     public void OnShutdown(NetworkRunner callbackRunner, ShutdownReason shutdownReason)
     {
+        Debug.Log($"[FusionBootstrap] OnShutdown: {shutdownReason}");
+
         CleanupRunner(callbackRunner);
         ReturnToLobbyUI($"Disconnected: {shutdownReason}");
 
         isReturningToLobby = false;
+
+        ScheduleRejoinLobbyAfterCleanup();
     }
-    public void OnConnectedToServer(NetworkRunner runner) { }
+
     public void OnDisconnectedFromServer(NetworkRunner callbackRunner, NetDisconnectReason reason)
     {
+        Debug.Log($"[FusionBootstrap] OnDisconnectedFromServer: {reason}");
+
         CleanupRunner(callbackRunner);
         ReturnToLobbyUI($"Disconnected: {reason}");
 
         isReturningToLobby = false;
+
+        ScheduleRejoinLobbyAfterCleanup();
     }
+
+    public void OnConnectedToServer(NetworkRunner runner) { }
 
     private void CleanupRunner(NetworkRunner callbackRunner)
     {
+        Debug.Log("[FusionBootstrap] CleanupRunner");
+
         if (callbackRunner != null)
             callbackRunner.RemoveCallbacks(this);
 
@@ -484,14 +559,76 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
     private void ReturnToLobbyUI(string message)
     {
+        Debug.Log($"[FusionBootstrap] ReturnToLobbyUI: {message}");
+
         GameManager.Instance?.SetMenuCursor();
 
-        MainMenuFlowUI menu = FindFirstObjectByType<MainMenuFlowUI>(FindObjectsInactive.Include);
-        if (menu != null)
+        MainMenuFlowUI menu =
+            FindFirstObjectByType<MainMenuFlowUI>(FindObjectsInactive.Include);
+
+        if (menu == null)
+        {
+            Debug.LogError("[FusionBootstrap] MainMenuFlowUI not found.");
+        }
+        else
+        {
+            Debug.Log("[FusionBootstrap] MainMenuFlowUI found. Showing lobby.");
             menu.ShowLobbyDirect();
+        }
 
         StatusChanged?.Invoke(message);
     }
+
+    private void OnApplicationQuit()
+    {
+        if (runner != null)
+        {
+            Debug.Log("[FusionBootstrap] OnApplicationQuit - shutting down runner.");
+            runner.Shutdown();
+        }
+    }
+
+    private void ScheduleRejoinLobbyAfterCleanup()
+    {
+        if (!autoRejoinLobbyAfterReturn)
+            return;
+
+        if (!isActiveAndEnabled)
+            return;
+
+        if (rejoinLobbyRoutine != null)
+            StopCoroutine(rejoinLobbyRoutine);
+
+        rejoinLobbyRoutine = StartCoroutine(RejoinLobbyAfterCleanupRoutine());
+    }
+
+    private IEnumerator RejoinLobbyAfterCleanupRoutine()
+    {
+        // Destroy(callbackRunner)가 실제로 반영될 시간을 줍니다.
+        yield return null;
+        yield return null;
+
+        rejoinLobbyRoutine = null;
+
+        if (runner != null)
+            yield break;
+
+        if (isBusy)
+            yield break;
+
+        // 아직 같은 GameObject에 NetworkRunner가 남아 있으면 한 번 더 기다립니다.
+        NetworkRunner existingRunner = GetComponent<NetworkRunner>();
+        if (existingRunner != null)
+        {
+            Debug.LogWarning("[FusionBootstrap] NetworkRunner still exists. Waiting one more frame before rejoining lobby.");
+            ScheduleRejoinLobbyAfterCleanup();
+            yield break;
+        }
+
+        Debug.Log("[FusionBootstrap] Rejoining lobby after runner cleanup.");
+        JoinLobby();
+    }
+
     public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
     public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
     public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }

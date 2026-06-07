@@ -61,6 +61,15 @@ public class GameManager : MonoBehaviour
         SyncCursorWithPhase();
     }
 
+    public void UnregisterMatchManager(MatchManager manager)
+    {
+        if (matchManager != manager)
+            return;
+
+        matchManager = null;
+        SyncCursorWithPhase();
+    }
+
     public void RegisterLocalCamera(LocalCamera camera)
     {
         localCamera = camera;
@@ -144,14 +153,5 @@ public class GameManager : MonoBehaviour
                 SetMenuCursor();
                 break;
         }
-    }
-
-    public void UnregisterMatchManager(MatchManager manager)
-    {
-        if (matchManager != manager)
-            return;
-
-        matchManager = null;
-        SyncCursorWithPhase();
     }
 }

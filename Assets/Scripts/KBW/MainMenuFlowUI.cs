@@ -31,10 +31,16 @@ public class MainMenuFlowUI : MonoBehaviour
     [SerializeField] private GameObject[] previewCharacters;
     [SerializeField] private string[] characterNames;
 
+    [Header("Root")]
+    [SerializeField] private GameObject menuRoot;
+
     private int selectedCharacterId;
 
     private void Awake()
     {
+        if (menuRoot == null)
+            menuRoot = gameObject;
+
         if (playButton != null)
             playButton.onClick.AddListener(ShowProfile);
 
@@ -190,6 +196,13 @@ public class MainMenuFlowUI : MonoBehaviour
 
     public void ShowLobbyDirect()
     {
+        Debug.Log("[MainMenuFlowUI] ShowLobbyDirect");
+
+        if (menuRoot != null)
+            menuRoot.SetActive(true);
+
+        gameObject.SetActive(true);
+
         SetPanel(titlePanel, false);
         SetPanel(profilePanel, false);
         SetPanel(lobbyPanel, true);

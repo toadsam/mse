@@ -280,14 +280,29 @@ public class MatchManager : NetworkBehaviour
         Phase = MatchPhase.MatchResult;
         PhaseTimer = default;
 
+        Debug.Log("[MatchManager] EnterMatchResultPhase");
+
         if (!hasSubmittedMatchResult)
         {
             hasSubmittedMatchResult = true;
-            //SubmitMatchResultToBackend();
+            // SubmitMatchResultToBackend(); // 서버 연결 전까지 주석 유지
         }
 
-        FusionBootstrap bootstrap = FindFirstObjectByType<FusionBootstrap>();
-        if (bootstrap != null) bootstrap.ReturnToLobbyAfter(returnToLobbyAfterMatchSeconds, "Match finished. Returning to lobby...");
+        FusionBootstrap bootstrap =
+            FindFirstObjectByType<FusionBootstrap>(FindObjectsInactive.Include);
+
+        if (bootstrap != null)
+        {
+            Debug.Log("[MatchManager] Scheduling return to lobby.");
+            bootstrap.ReturnToLobbyAfter(
+                returnToLobbyAfterMatchSeconds,
+                "Match finished. Returning to lobby..."
+            );
+        }
+        else
+        {
+            Debug.LogError("[MatchManager] FusionBootstrap not found.");
+        }
     }
 
     public void OnRoundEnded()
