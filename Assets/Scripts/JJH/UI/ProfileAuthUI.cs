@@ -87,9 +87,8 @@ public class ProfileAuthUI : MonoBehaviour
         if (emailInput == null || passwordInput == null) return;
         _lastActionWasLogin = false;
         SetStatus("Signing up...");
-        string email = emailInput.text;
-        string nickname = email.Contains("@") ? email.Split('@')[0] : email;
-        AuthManager.Instance.Signup(email, passwordInput.text, nickname);
+        string userId = emailInput.text;
+        AuthManager.Instance.Signup(userId, passwordInput.text, userId);
     }
 
     private void OnLoginSucceeded(AuthResponse auth)
@@ -110,23 +109,7 @@ public class ProfileAuthUI : MonoBehaviour
     {
         SetStatus(string.Empty);
         Debug.LogWarning($"[ProfileAuthUI] Auth failed: {error}");
-
-        string message;
-        if (_lastActionWasLogin)
-        {
-            if (error.Contains("404") || error.Contains("User not found"))
-                message = "User not found. Please sign up first.";
-            else if (error.Contains("401") || error.Contains("Wrong password"))
-                message = "Incorrect password. Please try again.";
-            else
-                message = error;
-        }
-        else
-        {
-            message = error;
-        }
-
-        ShowPopup(message, proceed: false);
+        ShowPopup(ErrorMessageFormatter.ToFriendly(error), proceed: false);
     }
 
     private void ShowPopup(string message, bool proceed)
