@@ -2189,7 +2189,7 @@ MonoBehaviour:
   playerPrefab:
     RawGuidValue: c2c91347513baba4c8f9a822efbc0ba3
   customLobbyName: LastRound_Lobby
-  maxPlayersPerRoom: 1
+  maxPlayersPerRoom: 2
   defaultRoomPrefix: LastRound
   objectProvider: {fileID: 40900768}
   maxPooledObjectsPerPrefab: 64
@@ -12084,7 +12084,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MatchManager
   augmentDatabase: {fileID: 1442670098}
-  playersRequiredToStart: 1
+  playersRequiredToStart: 2
   roundsToWin: 3
   roundIntroSeconds: 2
   roundResultSeconds: 3
@@ -12109,6 +12109,8 @@ MonoBehaviour:
   _Player1Wins: 0
   _RoundWinnerSlot: 0
   _MatchWinnerSlot: 0
+  submitMatchResultToBackend: 1
+  returnToLobbyAfterMatchSeconds: 6
 --- !u!4 &243629962
 Transform:
   m_ObjectHideFlags: 0

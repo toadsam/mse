@@ -119,6 +119,8 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public int MedKitHealAmount { get; private set; }
 
     [Networked] public NetworkString<_32> PlayerName { get; private set; }
+
+    [Networked] public long BackendUserId { get; private set; } //서버 id
     [Networked] public NetworkBool HasAppliedProfile { get; private set; }
 
     [Networked] private int RoundTeleportSeq { get; set; }
@@ -208,6 +210,7 @@ public class PlayerNetwork : NetworkBehaviour
         {
             CharacterId = 0;
             PlayerName = $"Player {slotIndex + 1}";
+            BackendUserId = 0;
         }
         HasAppliedProfile = false;
 
@@ -309,10 +312,19 @@ public class PlayerNetwork : NetworkBehaviour
 
         Debug.Log($"[PlayerNetwork] Send profile RPC. Name={LocalPlayerProfile.PlayerName}, CharacterId={LocalPlayerProfile.CharacterId}");
 
+        RPC_RequestApplyProfile( LocalPlayerProfile.CharacterId, LocalPlayerProfile.PlayerName);
+
+
+        // 서버 추가 시 연결
+        /*string playerName = BackendSession.IsLoggedIn ? BackendSession.Nickname : LocalPlayerProfile.PlayerName;
+
+        long backendUserId = BackendSession.IsLoggedIn ? BackendSession.UserId : 0;
+
         RPC_RequestApplyProfile(
             LocalPlayerProfile.CharacterId,
-            LocalPlayerProfile.PlayerName
-        );
+            playerName,
+            backendUserId
+        );*/
     }
 
     public override void Despawned(NetworkRunner runner, bool hasState)
@@ -1115,6 +1127,27 @@ public class PlayerNetwork : NetworkBehaviour
         HasAppliedProfile = true;
     }
 
+    //서버 연결 시 교체
+    /*[Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    public void RPC_RequestApplyProfile(byte requestedCharacterId, string requestedPlayerName, long backendUserId)
+    {
+        if (playerVisuals != null && !playerVisuals.IsValidCharacterId(requestedCharacterId))
+            requestedCharacterId = 0;
+
+        string safeName = (requestedPlayerName ?? "").Trim();
+
+        if (string.IsNullOrWhiteSpace(safeName))
+            safeName = $"Player {SlotIndex + 1}";
+
+        if (safeName.Length > LocalPlayerProfile.MaxNameLength)
+            safeName = safeName.Substring(0, LocalPlayerProfile.MaxNameLength);
+
+        CharacterId = requestedCharacterId;
+        PlayerName = safeName;
+        BackendUserId = backendUserId > 0 ? backendUserId : 0;
+        HasAppliedProfile = true;
+    }*/
+
     public Vector3 GetOrbitAccessoryPosition(int index, int count, float radius, float height)
     {
         Vector3 dir = GetOrbitAccessoryDirection(index, count);
@@ -1304,6 +1337,7 @@ public class PlayerNetwork : NetworkBehaviour
         SelectedAugmentId = augmentId;
         HasSelectedAugmentNet = true;
 
+        match.RecordSelectedAugment(this, def);
         match.NotifyPlayerSelectedAugment(this);
     }
 

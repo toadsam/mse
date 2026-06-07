@@ -50,6 +50,21 @@ public class MatchManager : NetworkBehaviour
 
     public MatchPhase CurrentPhase => Phase;
 
+    [SerializeField] private bool submitMatchResultToBackend = true;
+    [SerializeField] private float returnToLobbyAfterMatchSeconds = 6f;
+
+    private bool hasSubmittedMatchResult;
+
+    private struct SelectedAugmentRecord
+    {
+        public int augmentId;
+        public string augmentName;
+        public int selectedRound;
+        public int selectedOrder;
+    }
+
+    private readonly Dictionary<int, List<SelectedAugmentRecord>> selectedAugmentsBySlot = new();
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -133,6 +148,8 @@ public class MatchManager : NetworkBehaviour
         RoundWinnerSlot = -1;
         MatchWinnerSlot = -1;
 
+        hasSubmittedMatchResult = false;
+        selectedAugmentsBySlot.Clear();
         usedOfferedAugmentIds.Clear();
 
         InitializeArenaPool();
@@ -257,8 +274,20 @@ public class MatchManager : NetworkBehaviour
         if (!HasStateAuthority)
             return;
 
+        if (Phase == MatchPhase.MatchResult)
+            return;
+
         Phase = MatchPhase.MatchResult;
         PhaseTimer = default;
+
+        if (!hasSubmittedMatchResult)
+        {
+            hasSubmittedMatchResult = true;
+            //SubmitMatchResultToBackend();
+        }
+
+        FusionBootstrap bootstrap = FindFirstObjectByType<FusionBootstrap>();
+        if (bootstrap != null) bootstrap.ReturnToLobbyAfter(returnToLobbyAfterMatchSeconds, "Match finished. Returning to lobby...");
     }
 
     public void OnRoundEnded()
@@ -513,10 +542,146 @@ public class MatchManager : NetworkBehaviour
         }
     }
 
+    public void RecordSelectedAugment(PlayerNetwork player, AugmentDefinition def)
+    {
+        if (!HasStateAuthority)
+            return;
+
+        if (player == null || def == null)
+            return;
+
+        int slot = player.SlotIndex;
+
+        if (!selectedAugmentsBySlot.TryGetValue(slot, out List<SelectedAugmentRecord> records))
+        {
+            records = new List<SelectedAugmentRecord>();
+            selectedAugmentsBySlot.Add(slot, records);
+        }
+
+        records.Add(new SelectedAugmentRecord
+        {
+            augmentId = def.id,
+            augmentName = def.displayName,
+            selectedRound = RoundIndex,
+            selectedOrder = records.Count + 1
+        });
+    }
+
     public AugmentDefinition GetAugmentById(int id)
     {
         return augmentDatabase != null ? augmentDatabase.GetById(id) : null;
     }
+
+    public override void Despawned(NetworkRunner runner, bool hasState)
+    {
+        if (Instance == this)
+            Instance = null;
+
+        GameManager.Instance?.UnregisterMatchManager(this);
+    }
+
+    /*
+    private void SubmitMatchResultToBackend()
+    {
+        if (!submitMatchResultToBackend)
+            return;
+
+        if (MatchResultService.Instance == null)
+        {
+            Debug.LogWarning("[MatchManager] MatchResultService is not ready.");
+            return;
+        }
+
+        if (!BackendSession.IsLoggedIn)
+        {
+            Debug.LogWarning("[MatchManager] Host is not logged in. Match result will not be saved.");
+            return;
+        }
+
+        PlayerNetwork player0 = null;
+        PlayerNetwork player1 = null;
+
+        List<PlayerNetwork> players = GetAllPlayers();
+
+        foreach (PlayerNetwork player in players)
+        {
+            if (player.SlotIndex == 0)
+                player0 = player;
+            else if (player.SlotIndex == 1)
+                player1 = player;
+        }
+
+        if (player0 == null || player1 == null)
+        {
+            Debug.LogWarning("[MatchManager] Cannot save result. Both players are not found.");
+            return;
+        }
+
+        if (player0.BackendUserId <= 0 || player1.BackendUserId <= 0)
+        {
+            Debug.LogWarning("[MatchManager] Cannot save result. Both players must be logged in.");
+            return;
+        }
+
+        long winnerId = MatchWinnerSlot == 0
+            ? player0.BackendUserId
+            : player1.BackendUserId;
+
+        MatchResultRequest request = new MatchResultRequest
+        {
+            player1Id = player0.BackendUserId,
+            player2Id = player1.BackendUserId,
+            winnerId = winnerId,
+            player1Score = Player0Wins,
+            player2Score = Player1Wins,
+            players = new List<MatchPlayerResultRequest>
+        {
+            BuildPlayerResultPayload(player0, MatchWinnerSlot == 0, Player0Wins),
+            BuildPlayerResultPayload(player1, MatchWinnerSlot == 1, Player1Wins)
+        }
+        };
+
+        MatchResultService.Instance.SaveResult(
+            request,
+            match =>
+            {
+                Debug.Log($"[MatchManager] Match result saved. MatchId={match.id}");
+            },
+            error =>
+            {
+                Debug.LogWarning($"[MatchManager] Failed to save match result: {error}");
+            }
+        );
+    }
+
+    private MatchPlayerResultRequest BuildPlayerResultPayload(PlayerNetwork player, bool isWinner, int score)
+    {
+        MatchPlayerResultRequest result = new MatchPlayerResultRequest
+        {
+            userId = player.BackendUserId,
+            result = isWinner ? "WIN" : "LOSE",
+            score = score,
+            damageDealt = 0,
+            characterName = $"Character {player.CharacterId}",
+            augments = new List<MatchPlayerAugmentRequest>()
+        };
+
+        if (selectedAugmentsBySlot.TryGetValue(player.SlotIndex, out List<SelectedAugmentRecord> records))
+        {
+            foreach (SelectedAugmentRecord record in records)
+            {
+                result.augments.Add(new MatchPlayerAugmentRequest
+                {
+                    augmentId = record.augmentId,
+                    augmentName = record.augmentName,
+                    selectedOrder = record.selectedOrder,
+                    selectedRound = record.selectedRound
+                });
+            }
+        }
+
+        return result;
+    }*/
 
     [ContextMenu("Debug/Player 0 Win Round")]
     private void DebugPlayer0WinRound()

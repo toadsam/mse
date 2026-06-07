@@ -97,6 +97,29 @@ public class MainMenuFlowUI : MonoBehaviour
         SetPanel(characterPreviewArea, false);
     }
 
+    // 서버 연결 시 사용
+    /*private void ConfirmProfileAndShowLobby()
+    {
+        if (!BackendSession.IsLoggedIn)
+        {
+            if (statusText != null)
+                statusText.text = "Please login first.";
+
+            return;
+        }
+
+        string playerName = BackendSession.Nickname;
+
+        if (string.IsNullOrWhiteSpace(playerName))
+            playerName = BackendSession.Email;
+
+        LocalPlayerProfile.SetProfile(playerName, (byte)selectedCharacterId);
+
+        SetPanel(titlePanel, false);
+        SetPanel(profilePanel, false);
+        SetPanel(lobbyPanel, true);
+    }*/
+
     private void SelectPreviousCharacter()
     {
         if (previewCharacters == null || previewCharacters.Length == 0)
@@ -163,5 +186,14 @@ public class MainMenuFlowUI : MonoBehaviour
 #else
         Application.Quit();
 #endif
+    }
+
+    public void ShowLobbyDirect()
+    {
+        SetPanel(titlePanel, false);
+        SetPanel(profilePanel, false);
+        SetPanel(lobbyPanel, true);
+
+        SetPanel(characterPreviewArea, false);
     }
 }

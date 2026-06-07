@@ -4,6 +4,7 @@ using Fusion;
 using Fusion.Sockets;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using System.Collections;
 
 public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 {
@@ -33,6 +34,9 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
     private bool isBusy;
     private bool isInLobby;
+
+    private Coroutine returnToLobbyRoutine;
+    private bool isReturningToLobby;
 
 
     // 탭 입력 누락 방지용
@@ -277,6 +281,10 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
     {
+        bool wasInMatch =
+            MatchManager.Instance != null &&
+            MatchManager.Instance.CurrentPhase != MatchPhase.Lobby;
+
         if (spawnedPlayers.TryGetValue(player, out NetworkObject obj))
         {
             runner.Despawn(obj);
@@ -284,6 +292,12 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         runner.SetPlayerObject(player, null);
+
+        if (wasInMatch)
+        {
+            ShutdownAndReturnToLobby("Disconnected. Returning to lobby...");
+            return;
+        }
 
         UpdateRoomAvailability();
     }
@@ -388,10 +402,96 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         runner.SessionInfo.IsVisible = canJoin;
     }
 
+    public void ReturnToLobbyAfter(float seconds, string message)
+    {
+        if (returnToLobbyRoutine != null)
+            StopCoroutine(returnToLobbyRoutine);
+
+        returnToLobbyRoutine = StartCoroutine(ReturnToLobbyAfterRoutine(seconds, message));
+    }
+
+    private IEnumerator ReturnToLobbyAfterRoutine(float seconds, string message)
+    {
+        yield return new WaitForSeconds(Mathf.Max(0.1f, seconds));
+
+        ShutdownAndReturnToLobby(message);
+    }
+
+    public async void ShutdownAndReturnToLobby(string message)
+    {
+        if (isReturningToLobby)
+            return;
+
+        isReturningToLobby = true;
+
+        if (returnToLobbyRoutine != null)
+        {
+            StopCoroutine(returnToLobbyRoutine);
+            returnToLobbyRoutine = null;
+        }
+
+        StatusChanged?.Invoke(message);
+
+        NetworkRunner oldRunner = runner;
+
+        if (oldRunner != null)
+        {
+            await oldRunner.Shutdown();
+        }
+        else
+        {
+            ReturnToLobbyUI(message);
+            isReturningToLobby = false;
+        }
+    }
+
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
-    public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) { }
+    public void OnShutdown(NetworkRunner callbackRunner, ShutdownReason shutdownReason)
+    {
+        CleanupRunner(callbackRunner);
+        ReturnToLobbyUI($"Disconnected: {shutdownReason}");
+
+        isReturningToLobby = false;
+    }
     public void OnConnectedToServer(NetworkRunner runner) { }
-    public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
+    public void OnDisconnectedFromServer(NetworkRunner callbackRunner, NetDisconnectReason reason)
+    {
+        CleanupRunner(callbackRunner);
+        ReturnToLobbyUI($"Disconnected: {reason}");
+
+        isReturningToLobby = false;
+    }
+
+    private void CleanupRunner(NetworkRunner callbackRunner)
+    {
+        if (callbackRunner != null)
+            callbackRunner.RemoveCallbacks(this);
+
+        if (runner == callbackRunner)
+            runner = null;
+
+        if (callbackRunner != null)
+            Destroy(callbackRunner);
+
+        spawnedPlayers.Clear();
+        cachedSessions.Clear();
+
+        isBusy = false;
+        isInLobby = false;
+
+        ClearBufferedInput();
+    }
+
+    private void ReturnToLobbyUI(string message)
+    {
+        GameManager.Instance?.SetMenuCursor();
+
+        MainMenuFlowUI menu = FindFirstObjectByType<MainMenuFlowUI>(FindObjectsInactive.Include);
+        if (menu != null)
+            menu.ShowLobbyDirect();
+
+        StatusChanged?.Invoke(message);
+    }
     public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
     public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
     public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }

@@ -145,4 +145,13 @@ public class GameManager : MonoBehaviour
                 break;
         }
     }
+
+    public void UnregisterMatchManager(MatchManager manager)
+    {
+        if (matchManager != manager)
+            return;
+
+        matchManager = null;
+        SyncCursorWithPhase();
+    }
 }
