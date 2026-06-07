@@ -10,20 +10,20 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1013d0369b4212442b2b0d13a45ab55d, type: 3}
-  m_Name: Fastball
+  m_Name: Spinning Knife
   m_EditorClassIdentifier: Assembly-CSharp::AugmentDefinition
-  id: 4
-  displayName: Fastball
-  description: Bullets fly much faster.
+  id: 14
+  displayName: Spinning Knife
+  description: A spinning weapon damages nearby enemies.
   icon: {fileID: 0}
   rarity: 0
-  category: 0
+  category: 4
   extraProjectiles: 0
   spreadAngle: 0
-  projectileSizeMultiplier: 0.9
-  projectileSpeedMultiplier: 2.3
-  damageMultiplier: 0.9
-  fireIntervalMultiplier: 1.1
+  projectileSizeMultiplier: 1
+  projectileSpeedMultiplier: 1
+  damageMultiplier: 1
+  fireIntervalMultiplier: 1
   bounceCountBonus: 0
   pierceCountBonus: 0
   targetBounce: 0
@@ -43,12 +43,12 @@ MonoBehaviour:
   cooldownRefundOnHit: 0
   stackable: 0
   maxStacks: 1
-  accessoryType: 0
-  accessoryCountBonus: 0
-  accessoryRadius: 1.4
-  accessoryRotateSpeed: 180
-  accessoryDamage: 0
-  accessoryHitInterval: 0.6
+  accessoryType: 2
+  accessoryCountBonus: 1
+  accessoryRadius: 1.45
+  accessoryRotateSpeed: 220
+  accessoryDamage: 30
+  accessoryHitInterval: 0.7
   shieldBlockAngle: 70
   replacesActiveItem: 0
   activeItemType: 0

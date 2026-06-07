@@ -130,6 +130,17 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 65
   lifeSeconds: 3
+  growFullDistance: 25
+  explosionFxPrefab:
+    RawGuidValue: 4f49b5c7fbd284b4dbd9c28dcb6433c3
+  projectileRenderers:
+  - {fileID: 23924345589650348}
+  trailRenderers: []
+  projectileParticles: []
+  normalProjectileColor: {r: 1, g: 1, b: 1, a: 1}
+  poisonProjectileColor: {r: 0.15, g: 1, b: 0.15, a: 1}
+  toxicCloudPrefab:
+    RawGuidValue: ba32e145d9f2a9a4faecbb43e53560c8
 --- !u!114 &3876463272802895279
 MonoBehaviour:
   m_ObjectHideFlags: 0
