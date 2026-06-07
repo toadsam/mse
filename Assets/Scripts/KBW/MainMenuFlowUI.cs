@@ -1,11 +1,11 @@
-using TMPro;
+﻿using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class MainMenuFlowUI : MonoBehaviour
 {
     [Header("Header")]
-    [Tooltip("패널 밖 상단 중앙에 항상 표시되는 LAST ROUND 타이틀 그룹입니다.")]
+    [Tooltip("?⑤꼸 諛??곷떒 以묒븰????긽 ?쒖떆?섎뒗 LAST ROUND ??댄? 洹몃９?낅땲??")]
     [SerializeField] private GameObject titleHeader;
 
     [Header("Panels")]
@@ -15,7 +15,7 @@ public class MainMenuFlowUI : MonoBehaviour
     [SerializeField] private GameObject lobbyPanel;
 
     [Header("World Preview")]
-    [Tooltip("Canvas 밖 월드에 배치된 캐릭터 프리뷰 루트입니다.")]
+    [Tooltip("Canvas 諛??붾뱶??諛곗튂??罹먮┃???꾨━酉?猷⑦듃?낅땲??")]
     [SerializeField] private GameObject characterPreviewArea;
 
     [Header("Title")]
@@ -40,6 +40,9 @@ public class MainMenuFlowUI : MonoBehaviour
     [SerializeField] private GameObject[] previewCharacters;
     [SerializeField] private string[] characterNames;
 
+    [Header("Root")]
+    [SerializeField] private GameObject menuRoot;
+
     private int selectedCharacterId;
     private bool _waitingForNicknameUpdate;
 
@@ -48,6 +51,9 @@ public class MainMenuFlowUI : MonoBehaviour
 
     private void Awake()
     {
+        if (menuRoot == null)
+            menuRoot = gameObject;
+
         if (playButton != null)
             playButton.onClick.AddListener(ShowProfile);
 
@@ -299,5 +305,22 @@ public class MainMenuFlowUI : MonoBehaviour
 #else
         Application.Quit();
 #endif
+    }
+
+    public void ShowLobbyDirect()
+    {
+        Debug.Log("[MainMenuFlowUI] ShowLobbyDirect");
+
+        if (menuRoot != null)
+            menuRoot.SetActive(true);
+
+        gameObject.SetActive(true);
+
+        SetPanel(titlePanel, false);
+        SetPanel(profilePanel, false);
+        SetPanel(characterSelectPanel, false);
+        SetPanel(titleHeader, false);
+        SetPanel(lobbyPanel, true);
+        SetPanel(characterPreviewArea, false);
     }
 }

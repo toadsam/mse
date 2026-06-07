@@ -10,7 +10,7 @@ public class MatchManager : NetworkBehaviour
     [SerializeField] private AugmentDatabase augmentDatabase;
 
     [Header("Match Rules")]
-    [SerializeField] private int playersRequiredToStart = 2; // ȥ�� �׽�Ʈ ���̸� 1, ���� ��Ƽ �׽�Ʈ�� 2
+    [SerializeField] private int playersRequiredToStart = 2; // 혼占쏙옙 占쌓쏙옙트 占쏙옙占싱몌옙 1, 占쏙옙占쏙옙 占쏙옙티 占쌓쏙옙트占쏙옙 2
     [SerializeField] private int roundsToWin = 3;
     [SerializeField] private float roundIntroSeconds = 2.0f;
     [SerializeField] private float roundResultSeconds = 3.0f;
@@ -44,16 +44,16 @@ public class MatchManager : NetworkBehaviour
     [Networked] public int RoundWinnerSlot { get; private set; }
     [Networked] public int MatchWinnerSlot { get; private set; }
 
-    // 매치 지속 시간(초). 결과 화면 표시용. 호스트가 매치 종료 시 확정한다.
+    // 留ㅼ튂 吏???쒓컙(珥?. 寃곌낵 ?붾㈃ ?쒖떆?? ?몄뒪?멸? 留ㅼ튂 醫낅즺 ???뺤젙?쒕떎.
     [Networked] public float MatchDurationSeconds { get; private set; }
     [Networked] private float MatchStartSimTime { get; set; }
 
-    // 백엔드 저장 결과 상태(결과 화면이 저장 성공 후 표시되도록 하는 신호).
-    // Resolved: 저장 시도/스킵이 끝남, Succeeded: DB 저장 성공.
+    // 諛깆뿏?????寃곌낵 ?곹깭(寃곌낵 ?붾㈃??????깃났 ???쒖떆?섎룄濡??섎뒗 ?좏샇).
+    // Resolved: ????쒕룄/?ㅽ궢???앸궓, Succeeded: DB ????깃났.
     [Networked] public NetworkBool ResultSaveResolved { get; private set; }
     [Networked] public NetworkBool ResultSaveSucceeded { get; private set; }
 
-    // 호스트 콜백(코루틴)에서 세팅 → FixedUpdateNetwork에서 네트워크 상태로 미러링.
+    // ?몄뒪??肄쒕갚(肄붾（???먯꽌 ?명똿 ??FixedUpdateNetwork?먯꽌 ?ㅽ듃?뚰겕 ?곹깭濡?誘몃윭留?
     private bool pendingSaveResolved;
     private bool pendingSaveSucceeded;
 
@@ -61,10 +61,23 @@ public class MatchManager : NetworkBehaviour
 
     private int lastAppliedArenaIndex = -999;
 
-    // 매치 결과를 백엔드(MySQL)로 호스트가 1회만 전송하도록 막는 플래그.
+    // 留ㅼ튂 寃곌낵瑜?諛깆뿏??MySQL)濡??몄뒪?멸? 1?뚮쭔 ?꾩넚?섎룄濡?留됰뒗 ?뚮옒洹?
     private bool matchResultReported = false;
 
     public MatchPhase CurrentPhase => Phase;
+
+    [SerializeField] private bool submitMatchResultToBackend = true;
+    [SerializeField] private float returnToLobbyAfterMatchSeconds = 6f;
+
+    private struct SelectedAugmentRecord
+    {
+        public int augmentId;
+        public string augmentName;
+        public int selectedRound;
+        public int selectedOrder;
+    }
+
+    private readonly Dictionary<int, List<SelectedAugmentRecord>> selectedAugmentsBySlot = new();
 
     private void Awake()
     {
@@ -126,7 +139,7 @@ public class MatchManager : NetworkBehaviour
                 break;
 
             case MatchPhase.MatchResult:
-                // 백엔드 저장 콜백(코루틴)에서 세팅한 결과를 네트워크 상태로 미러링한다.
+                // 諛깆뿏?????肄쒕갚(肄붾（???먯꽌 ?명똿??寃곌낵瑜??ㅽ듃?뚰겕 ?곹깭濡?誘몃윭留곹븳??
                 if (pendingSaveResolved && !ResultSaveResolved)
                 {
                     ResultSaveSucceeded = pendingSaveSucceeded;
@@ -159,6 +172,7 @@ public class MatchManager : NetworkBehaviour
         MatchWinnerSlot = -1;
 
         matchResultReported = false;
+        selectedAugmentsBySlot.Clear();
 
         MatchStartSimTime = (float)Runner.SimulationTime;
         MatchDurationSeconds = 0f;
@@ -166,10 +180,9 @@ public class MatchManager : NetworkBehaviour
         ResultSaveSucceeded = false;
         pendingSaveResolved = false;
         pendingSaveSucceeded = false;
-
         usedOfferedAugmentIds.Clear();
 
-        // 새 매치 시작 시 각 플레이어의 augment 선택 누적 기록 초기화.
+        // ??留ㅼ튂 ?쒖옉 ??媛??뚮젅?댁뼱??augment ?좏깮 ?꾩쟻 湲곕줉 珥덇린??
         foreach (PlayerNetwork player in GetAllPlayers())
             player.ResetAugmentHistory();
 
@@ -232,7 +245,7 @@ public class MatchManager : NetworkBehaviour
 
         Phase = MatchPhase.RoundIntro;
 
-        ChooseArenaForRound();       // �� �� �߰�
+        ChooseArenaForRound();       // 占쏙옙 占쏙옙 占쌩곤옙
         ResetAllPlayersForRound();
 
         PhaseTimer = TickTimer.CreateFromSeconds(Runner, roundIntroSeconds);
@@ -268,7 +281,8 @@ public class MatchManager : NetworkBehaviour
 
         ApplyActiveArenaVisuals();
 
-        Debug.Log($"[MatchManager] Round {RoundIndex} Arena: {ActiveArenaIndex}");
+        Debug.Log($"[MatchManager] Round {RoundIndex} Arena: {ActiveArenaIndex}, Name: {arenaZones[ActiveArenaIndex].name}"
+);
     }
 
     public void EnterPlayingPhase()
@@ -294,16 +308,39 @@ public class MatchManager : NetworkBehaviour
         if (!HasStateAuthority)
             return;
 
+        if (Phase == MatchPhase.MatchResult)
+            return;
+
         Phase = MatchPhase.MatchResult;
         PhaseTimer = default;
 
         MatchDurationSeconds = Mathf.Max(0f, (float)Runner.SimulationTime - MatchStartSimTime);
 
         ReportMatchResultToBackend();
+
+        MatchResultUI resultUI = FindFirstObjectByType<MatchResultUI>(FindObjectsInactive.Include);
+        if (resultUI == null)
+        {
+            FusionBootstrap bootstrap =
+                FindFirstObjectByType<FusionBootstrap>(FindObjectsInactive.Include);
+
+            if (bootstrap != null)
+            {
+                Debug.Log("[MatchManager] MatchResultUI not found. Scheduling fallback return to lobby.");
+                bootstrap.ReturnToLobbyAfter(
+                    returnToLobbyAfterMatchSeconds,
+                    "Match finished. Returning to lobby..."
+                );
+            }
+            else
+            {
+                Debug.LogError("[MatchManager] FusionBootstrap not found.");
+            }
+        }
     }
 
-    // 매치 종료 시 호스트(StateAuthority)가 최종 결과를 백엔드로 1회 전송한다.
-    // 저장 실패/비로그인이어도 게임 결과 화면은 정상 진행된다(로그만 남김).
+    // 留ㅼ튂 醫낅즺 ???몄뒪??StateAuthority)媛 理쒖쥌 寃곌낵瑜?諛깆뿏?쒕줈 1???꾩넚?쒕떎.
+    // ????ㅽ뙣/鍮꾨줈洹몄씤?댁뼱??寃뚯엫 寃곌낵 ?붾㈃? ?뺤긽 吏꾪뻾?쒕떎(濡쒓렇留??④?).
     private void ReportMatchResultToBackend()
     {
         if (!HasStateAuthority)
@@ -315,13 +352,21 @@ public class MatchManager : NetworkBehaviour
         if (MatchWinnerSlot < 0)
             return;
 
+        if (!submitMatchResultToBackend)
+        {
+            matchResultReported = true;
+            pendingSaveSucceeded = false;
+            pendingSaveResolved = true;
+            return;
+        }
+
         List<PlayerNetwork> players = GetAllPlayers();
         PlayerNetwork slot0 = players.Find(p => p.SlotIndex == 0);
         PlayerNetwork slot1 = players.Find(p => p.SlotIndex == 1);
 
         if (slot0 == null || slot1 == null)
         {
-            Debug.LogWarning("[MatchManager] 매치 결과 저장 스킵: 두 플레이어를 찾지 못했어(연결 종료 등).");
+            Debug.LogWarning("[MatchManager] 留ㅼ튂 寃곌낵 ????ㅽ궢: ???뚮젅?댁뼱瑜?李얠? 紐삵뻽???곌껐 醫낅즺 ??.");
             return;
         }
 
@@ -330,19 +375,19 @@ public class MatchManager : NetworkBehaviour
 
         if (player1Id <= 0 || player2Id <= 0 || player1Id == player2Id)
         {
-            Debug.LogWarning($"[MatchManager] 매치 결과 저장 스킵: 유효하지 않은 backend userId (p1={player1Id}, p2={player2Id}). 게스트/비로그인 또는 미동기화일 수 있어.");
+            Debug.LogWarning($"[MatchManager] 留ㅼ튂 寃곌낵 ????ㅽ궢: ?좏슚?섏? ?딆? backend userId (p1={player1Id}, p2={player2Id}). 寃뚯뒪??鍮꾨줈洹몄씤 ?먮뒗 誘몃룞湲고솕?????덉뼱.");
             return;
         }
 
         long winnerId = MatchWinnerSlot == 0 ? player1Id : player2Id;
 
-        // 여기까지 왔으면 전송 시도 → 중복 방지 플래그를 먼저 세운다.
+        // ?ш린源뚯? ?붿쑝硫??꾩넚 ?쒕룄 ??以묐났 諛⑹? ?뚮옒洹몃? 癒쇱? ?몄슫??
         matchResultReported = true;
 
         if (MatchResultService.Instance == null)
         {
-            Debug.LogWarning("[MatchManager] MatchResultService.Instance가 없어 매치 결과를 저장하지 못했어.");
-            // 저장 불가 → 결과 화면은 정상 표시되도록 resolved 처리(저장 실패 상태).
+            Debug.LogWarning("[MatchManager] MatchResultService.Instance媛 ?놁뼱 留ㅼ튂 寃곌낵瑜???ν븯吏 紐삵뻽??");
+            // ???遺덇? ??寃곌낵 ?붾㈃? ?뺤긽 ?쒖떆?섎룄濡?resolved 泥섎━(????ㅽ뙣 ?곹깭).
             pendingSaveSucceeded = false;
             pendingSaveResolved = true;
             return;
@@ -350,25 +395,25 @@ public class MatchManager : NetworkBehaviour
 
         MatchResultRequest request = BuildMatchResultRequest(slot0, slot1, winnerId);
 
-        Debug.Log($"[MatchManager] 매치 결과 저장 요청: p1={player1Id}, p2={player2Id}, winner={winnerId}, score={Player0Wins}:{Player1Wins}, duration={MatchDurationSeconds:0.0}s");
+        Debug.Log($"[MatchManager] 留ㅼ튂 寃곌낵 ????붿껌: p1={player1Id}, p2={player2Id}, winner={winnerId}, score={Player0Wins}:{Player1Wins}, duration={MatchDurationSeconds:0.0}s");
 
         MatchResultService.Instance.SaveResult(
             request,
             match =>
             {
-                Debug.Log($"[MatchManager] 매치 결과 저장 성공. matchId={match?.id}");
+                Debug.Log($"[MatchManager] 留ㅼ튂 寃곌낵 ????깃났. matchId={match?.id}");
                 pendingSaveSucceeded = true;
                 pendingSaveResolved = true;
             },
             error =>
             {
-                Debug.LogError($"[MatchManager] 매치 결과 저장 실패: {error}");
+                Debug.LogError($"[MatchManager] 留ㅼ튂 寃곌낵 ????ㅽ뙣: {error}");
                 pendingSaveSucceeded = false;
                 pendingSaveResolved = true;
             });
     }
 
-    // 두 플레이어의 닉네임/캐릭터/선택 augment 이름/점수를 채운 저장 요청을 만든다.
+    // ???뚮젅?댁뼱???됰꽕??罹먮┃???좏깮 augment ?대쫫/?먯닔瑜?梨꾩슫 ????붿껌??留뚮뱺??
     private MatchResultRequest BuildMatchResultRequest(PlayerNetwork slot0, PlayerNetwork slot1, long winnerId)
     {
         MatchResultRequest request = new MatchResultRequest
@@ -401,13 +446,13 @@ public class MatchManager : NetworkBehaviour
             string augmentName = def != null ? def.displayName : null;
 
             if (string.IsNullOrEmpty(augmentName))
-                continue; // 이름을 알 수 없는 항목은 저장하지 않는다.
+                continue; // ?대쫫???????녿뒗 ??ぉ? ??ν븯吏 ?딅뒗??
 
             augments.Add(new MatchPlayerAugmentRequest
             {
-                augmentId = 0, // Unity augment는 DB augments와 매핑되지 않음 → 이름으로만 저장.
+                augmentId = 0, // Unity augment??DB augments? 留ㅽ븨?섏? ?딆쓬 ???대쫫?쇰줈留????
                 augmentName = augmentName,
-                selectedOrder = i + 1,               // 유저별로 (round, order) 유일하도록 전역 증가.
+                selectedOrder = i + 1,               // ?좎?蹂꾨줈 (round, order) ?좎씪?섎룄濡??꾩뿭 利앷?.
                 selectedRound = round > 0 ? round : i + 1
             });
         }
@@ -541,11 +586,11 @@ public class MatchManager : NetworkBehaviour
         if (player == null)
             return false;
 
-        // ù ���� ���� ������ �� �� ����
+        // 첫 占쏙옙占쏙옙 占쏙옙占쏙옙 占쏙옙占쏙옙占쏙옙 占쏙옙 占쏙옙 占쏙옙占쏙옙
         if (RoundIndex == 1 && Player0Wins == 0 && Player1Wins == 0)
             return true;
 
-        // ���Ŀ��� ���� ���� ���ڸ� ����
+        // 占쏙옙占식울옙占쏙옙 占쏙옙占쏙옙 占쏙옙占쏙옙 占쏙옙占쌘몌옙 占쏙옙占쏙옙
         if (RoundWinnerSlot < 0)
             return false;
 
@@ -567,14 +612,14 @@ public class MatchManager : NetworkBehaviour
             if (player.Object == null)
                 continue;
 
-            // ���� Runner�� ���� �÷��̾ ���
+            // 占쏙옙占쏙옙 Runner占쏙옙 占쏙옙占쏙옙 占시뤄옙占싱어만 占쏙옙占?
             if (Runner != null && player.Runner != Runner)
                 continue;
 
             players.Add(player);
         }
 
-        // ���� ������ �׻� �����ϵ��� ����
+        // 占쏙옙占쏙옙 占쏙옙占쏙옙占쏙옙 占쌓삼옙 占쏙옙占쏙옙占싹듸옙占쏙옙 占쏙옙占쏙옙
         players.Sort((a, b) => a.SlotIndex.CompareTo(b.SlotIndex));
 
         return players;
@@ -613,6 +658,12 @@ public class MatchManager : NetworkBehaviour
             Debug.Log($"[MatchManager] Reset Player Slot {player.SlotIndex} -> Pos {pos}, Yaw {yaw}");
 
             player.ResetForRound(pos, yaw);
+
+            Debug.Log(
+                $"[MatchManager] After Reset Slot {player.SlotIndex} / Transform Pos {player.transform.position}"
+            );
+
+
         }
     }
 
@@ -669,18 +720,43 @@ public class MatchManager : NetworkBehaviour
         }
     }
 
+    public void RecordSelectedAugment(PlayerNetwork player, AugmentDefinition def)
+    {
+        if (!HasStateAuthority)
+            return;
+
+        if (player == null || def == null)
+            return;
+
+        int slot = player.SlotIndex;
+
+        if (!selectedAugmentsBySlot.TryGetValue(slot, out List<SelectedAugmentRecord> records))
+        {
+            records = new List<SelectedAugmentRecord>();
+            selectedAugmentsBySlot.Add(slot, records);
+        }
+
+        records.Add(new SelectedAugmentRecord
+        {
+            augmentId = def.id,
+            augmentName = def.displayName,
+            selectedRound = RoundIndex,
+            selectedOrder = records.Count + 1
+        });
+    }
+
     public AugmentDefinition GetAugmentById(int id)
     {
         return augmentDatabase != null ? augmentDatabase.GetById(id) : null;
     }
 
-    // 결과 화면용: 슬롯(0/1)에 해당하는 플레이어를 반환한다.
+    // 寃곌낵 ?붾㈃?? ?щ’(0/1)???대떦?섎뒗 ?뚮젅?댁뼱瑜?諛섑솚?쒕떎.
     public PlayerNetwork GetPlayerBySlot(int slot)
     {
         return GetAllPlayers().Find(p => p.SlotIndex == slot);
     }
 
-    // 결과 화면용: 해당 플레이어가 매치 중 선택한 augment 표시 이름 목록.
+    // 寃곌낵 ?붾㈃?? ?대떦 ?뚮젅?댁뼱媛 留ㅼ튂 以??좏깮??augment ?쒖떆 ?대쫫 紐⑸줉.
     public List<string> GetSelectedAugmentNames(PlayerNetwork player)
     {
         List<string> names = new List<string>();
@@ -696,6 +772,14 @@ public class MatchManager : NetworkBehaviour
         }
 
         return names;
+    }
+
+    public override void Despawned(NetworkRunner runner, bool hasState)
+    {
+        if (Instance == this)
+            Instance = null;
+
+        GameManager.Instance?.UnregisterMatchManager(this);
     }
 
     [ContextMenu("Debug/Player 0 Win Round")]

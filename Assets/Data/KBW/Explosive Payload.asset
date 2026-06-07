@@ -10,20 +10,20 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1013d0369b4212442b2b0d13a45ab55d, type: 3}
-  m_Name: Heavy Cannon
+  m_Name: Explosive Payload
   m_EditorClassIdentifier: Assembly-CSharp::AugmentDefinition
-  id: 2
-  displayName: Heavy Cannon
-  description: Transforms your rifle into a slow but powerful cannon.
-  icon: {fileID: 21300000, guid: a01b8f01d16bd4e42861501485647d0c, type: 3}
+  id: 3
+  displayName: Explosive Payload
+  description: Bullets explode on impact.
+  icon: {fileID: 0}
   rarity: 0
   category: 0
   extraProjectiles: 0
   spreadAngle: 0
-  projectileSizeMultiplier: 1.5
-  projectileSpeedMultiplier: 0.6
-  damageMultiplier: 2
-  fireIntervalMultiplier: 1.8
+  projectileSizeMultiplier: 1
+  projectileSpeedMultiplier: 1
+  damageMultiplier: 0.8
+  fireIntervalMultiplier: 1
   bounceCountBonus: 0
   pierceCountBonus: 0
   targetBounce: 0
@@ -32,12 +32,9 @@ MonoBehaviour:
   appliesPoison: 0
   poisonDamagePerTick: 0
   poisonDuration: 0
-  appliesSlow: 0
-  slowMultiplier: 1
-  slowDuration: 0
-  explodesOnImpact: 0
-  explosionRadius: 0
-  explosionDamageMultiplier: 0
+  explodesOnImpact: 1
+  explosionRadius: 2.2
+  explosionDamageMultiplier: 0.45
   createsToxicCloud: 0
   cloudDuration: 0
   cloudRadius: 0
@@ -46,3 +43,14 @@ MonoBehaviour:
   cooldownRefundOnHit: 0
   stackable: 0
   maxStacks: 1
+  accessoryType: 0
+  accessoryCountBonus: 0
+  accessoryRadius: 1.4
+  accessoryRotateSpeed: 180
+  accessoryDamage: 0
+  accessoryHitInterval: 0.6
+  shieldBlockAngle: 70
+  replacesActiveItem: 0
+  activeItemType: 0
+  activeItemUsesPerRound: 1
+  medKitHealAmount: 10

@@ -17,6 +17,21 @@ public enum AugmentCategory
     RiskReward,
     WeaponStyle
 }
+public enum AugmentAccessoryType
+{
+    None,
+    OrbitShield,
+    OrbitMelee,
+    DropMelee
+}
+
+public enum ActiveItemType
+{
+    MedKit,
+    Grenade,
+    SmokeBomb,
+    ThrowingAxe
+}
 
 [CreateAssetMenu(fileName = "AugmentDefinition", menuName = "Game/Augment Definition")]
 public class AugmentDefinition : ScriptableObject
@@ -51,9 +66,6 @@ public class AugmentDefinition : ScriptableObject
     public bool appliesPoison = false;
     public int poisonDamagePerTick = 0;
     public float poisonDuration = 0f;
-    public bool appliesSlow = false;
-    public float slowMultiplier = 1f;
-    public float slowDuration = 0f;
 
     [Header("Explosion / Area")]
     public bool explodesOnImpact = false;
@@ -71,4 +83,25 @@ public class AugmentDefinition : ScriptableObject
     [Header("Stack")]
     public bool stackable = false;
     public int maxStacks = 1;
+
+    [Header("Accessory / Orbit")]
+    public AugmentAccessoryType accessoryType = AugmentAccessoryType.None;
+    public int accessoryCountBonus = 0;
+    public float accessoryRadius = 1.4f;
+    public float accessoryRotateSpeed = 180f;
+
+    [Tooltip("OrbitMelee 또는 DropMelee 피해량")]
+    public int accessoryDamage = 0;
+
+    [Tooltip("OrbitMelee가 같은 대상에게 다시 피해를 줄 수 있는 간격")]
+    public float accessoryHitInterval = 0.6f;
+
+    [Tooltip("Shield가 탄을 막는 각도입니다. 70이면 방패 중심 기준 좌우 35도 정도입니다.")]
+    public float shieldBlockAngle = 70f;
+
+    [Header("Active Item")]
+    public bool replacesActiveItem = false;
+    public ActiveItemType activeItemType = ActiveItemType.MedKit;
+    public int activeItemUsesPerRound = 1;
+    public int medKitHealAmount = 10;
 }

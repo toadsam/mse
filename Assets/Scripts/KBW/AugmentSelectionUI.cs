@@ -158,13 +158,39 @@ public class AugmentSelectionUI : MonoBehaviour
     {
         bool selected = localPlayer != null && localPlayer.HasSelectedAugmentNet;
 
+        if (selected)
+        {
+            if (titleText) titleText.text = "Augment Selected";
+            if (subText) subText.text = "Waiting for opponent...";
+
+            if (waitingText)
+            {
+                waitingText.text = "Waiting for opponent...";
+                waitingText.gameObject.SetActive(true);
+            }
+
+            foreach (var card in cards)
+            {
+                if (card != null)
+                    card.gameObject.SetActive(false);
+            }
+
+            return;
+        }
+
+        if (titleText) titleText.text = "Choose Your Augment";
+        if (subText) subText.text = "Select one augment before the round starts.";
+
         if (waitingText)
-            waitingText.gameObject.SetActive(selected);
+            waitingText.gameObject.SetActive(false);
 
         foreach (var card in cards)
         {
             if (card != null)
-                card.SetInteractable(!selected);
+            {
+                card.gameObject.SetActive(true);
+                card.SetInteractable(true);
+            }
         }
     }
 }
