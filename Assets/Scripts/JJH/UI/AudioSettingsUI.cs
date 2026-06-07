@@ -122,17 +122,11 @@ public class AudioSettingsUI : MonoBehaviour
     public void Open()
     {
         SetVisible(true);
-
-        if (GameManager.Instance != null)
-            GameManager.Instance.SetUICursor();
     }
 
     public void Close()
     {
         SetVisible(false);
-
-        if (GameManager.Instance != null)
-            GameManager.Instance.SyncCursorWithPhase();
     }
 
     private void ResolveReferences()
@@ -215,12 +209,12 @@ public class AudioSettingsUI : MonoBehaviour
     private void UpdatePhaseAudio()
     {
         MatchPhase currentPhase = GetCurrentPhase();
+        ApplyBgmForPhase(currentPhase);
 
         if (!hasAudioPhase)
         {
             hasAudioPhase = true;
             lastAudioPhase = currentPhase;
-            ApplyBgmForPhase(currentPhase);
             return;
         }
 
@@ -230,7 +224,6 @@ public class AudioSettingsUI : MonoBehaviour
         MatchPhase previousPhase = lastAudioPhase;
         lastAudioPhase = currentPhase;
 
-        ApplyBgmForPhase(currentPhase);
         TryPlayStartSound(previousPhase, currentPhase);
     }
 
@@ -350,7 +343,16 @@ public class AudioSettingsUI : MonoBehaviour
 
     private void SetVisible(bool visible)
     {
+        bool wasOpen = isOpen;
         isOpen = visible;
+
+        if (GameManager.Instance != null)
+        {
+            if (visible && !wasOpen)
+                GameManager.Instance.RequestUICursorLock();
+            else if (!visible && wasOpen)
+                GameManager.Instance.ReleaseUICursorLock();
+        }
 
         if (openButton != null)
             openButton.gameObject.SetActive(!visible);

@@ -15,6 +15,9 @@ public class GameManager : MonoBehaviour
     private MatchManager matchManager;
     private PlayerNetwork localPlayer;
     private PlayerView localPlayerView;
+    private int uiCursorLockCount;
+    private bool pauseCursorRequested;
+
     public MatchManager Match => matchManager;
     public PlayerNetwork LocalPlayer => localPlayer;
     public PlayerView LocalPlayerView => localPlayerView;
@@ -120,19 +123,52 @@ public class GameManager : MonoBehaviour
         cursorController?.SetUI();
     }
 
+    public void RequestUICursorLock()
+    {
+        uiCursorLockCount++;
+        SetUICursor();
+    }
+
+    public void ReleaseUICursorLock()
+    {
+        if (uiCursorLockCount > 0)
+            uiCursorLockCount--;
+
+        SyncCursorWithPhase();
+    }
+
     public void TogglePauseCursor()
     {
         if (cursorController == null)
             return;
 
-        if (cursorController.CurrentState == CursorController.CursorState.Gameplay)
+        if (uiCursorLockCount > 0)
+            return;
+
+        if (pauseCursorRequested)
+        {
+            pauseCursorRequested = false;
+            SyncCursorWithPhase();
+        }
+        else if (CurrentPhase == MatchPhase.Playing)
+        {
+            pauseCursorRequested = true;
             SetUICursor();
+        }
         else
-            SetGameplayCursor();
+        {
+            SyncCursorWithPhase();
+        }
     }
 
     public void SyncCursorWithPhase()
     {
+        if (uiCursorLockCount > 0 || pauseCursorRequested)
+        {
+            SetUICursor();
+            return;
+        }
+
         if (localPlayer == null)
         {
             SetMenuCursor();
