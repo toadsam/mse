@@ -36,6 +36,12 @@ public class MatchResultUI : MonoBehaviour
     [Tooltip("저장이 끝나지 않아도 결과 화면을 강제로 표시하기까지의 최대 대기 시간(초).")]
     [SerializeField] private float showResultTimeoutSeconds = 6f;
 
+    [Header("Loading")]
+    [SerializeField] private GameObject loadingRoot;
+    [SerializeField] private TMP_Text loadingText;
+    [SerializeField] private string loadingMessage = "Loading result";
+    [SerializeField] private float loadingDotInterval = 0.35f;
+
     private bool isShown;
     private bool isReturning;
     private float matchResultEnteredTime = -1f;
@@ -53,6 +59,7 @@ public class MatchResultUI : MonoBehaviour
             returnToLobbyButton.onClick.AddListener(OnReturnToLobbyClicked);
 
         SetVisible(false);
+        SetLoadingVisible(false);
     }
 
     private void Update()
@@ -73,9 +80,7 @@ public class MatchResultUI : MonoBehaviour
             if (isShown && !isReturning)
                 SetVisible(false);
 
-            isShown = false;
-            matchResultEnteredTime = -1f;
-            shownTime = -1f;
+            ResetState();
             return;
         }
 
@@ -101,9 +106,8 @@ public class MatchResultUI : MonoBehaviour
             if (isShown && !isReturning)
                 SetVisible(false);
 
-            isShown = false;
-            matchResultEnteredTime = -1f;
-            shownTime = -1f;
+            SetLoadingVisible(false);
+            ResetState();
             return;
         }
 
@@ -116,7 +120,15 @@ public class MatchResultUI : MonoBehaviour
             bool timedOut = Time.time - matchResultEnteredTime >= showResultTimeoutSeconds;
 
             if (saveResolved || timedOut)
+            {
+                SetLoadingVisible(false);
                 ShowResult(match);
+            }
+            else
+            {
+                SetLoadingVisible(true);
+                UpdateLoadingText();
+            }
 
             return;
         }
@@ -126,6 +138,8 @@ public class MatchResultUI : MonoBehaviour
 
     private void ShowResult(MatchManager match)
     {
+        SetLoadingVisible(false);
+
         isShown = true;
         shownTime = Time.time;
 
@@ -216,46 +230,24 @@ public class MatchResultUI : MonoBehaviour
             return;
 
         isReturning = true;
-
         SetVisible(false);
+
+        if (bootstrap == null)
+            bootstrap = FindFirstObjectByType<FusionBootstrap>(FindObjectsInactive.Include);
 
         if (bootstrap != null)
         {
-            // runner 종료가 끝난 뒤(ReturnedToLobby)에 로비 패널을 재활성화한다.
-            bootstrap.ReturnedToLobby += OnReturnedToLobby;
-            bootstrap.ReturnToLobby();
+            bootstrap.ShutdownAndReturnToLobby("Match finished. Returning to lobby...");
         }
         else
         {
             Debug.LogWarning("[MatchResultUI] FusionBootstrap ref missing. Cannot return to lobby.");
-            OnReturnedToLobby();
+            isReturning = false;
         }
     }
 
-    private void OnReturnedToLobby()
+    private void ResetState()
     {
-        if (bootstrap != null)
-            bootstrap.ReturnedToLobby -= OnReturnedToLobby;
-
-        if (panelsToShowOnReturn != null)
-        {
-            foreach (GameObject panel in panelsToShowOnReturn)
-            {
-                if (panel != null)
-                    panel.SetActive(true);
-            }
-        }
-
-        // 로비 내용(LobbyRoot)을 다시 켜고 새 runner로 로비에 재접속한다.
-        // panelsToShowOnReturn은 항상 active인 LobbyPanel(부모)만 가리키므로,
-        // HideLobby()가 끈 자식 LobbyRoot와 JoinLobby 재호출은 ShowLobby()가 처리한다.
-        LobbyMenuUI lobby = FindFirstObjectByType<LobbyMenuUI>(FindObjectsInactive.Include);
-        if (lobby != null)
-            lobby.ShowLobby();
-        else
-            Debug.LogWarning("[MatchResultUI] LobbyMenuUI를 찾지 못해 로비를 표시하지 못했어.");
-
-        // 다음 매치를 위해 상태 초기화.
         isShown = false;
         matchResultEnteredTime = -1f;
         shownTime = -1f;
@@ -303,5 +295,20 @@ public class MatchResultUI : MonoBehaviour
     {
         if (root != null && root.activeSelf != visible)
             root.SetActive(visible);
+    }
+
+    private void SetLoadingVisible(bool visible)
+    {
+        if (loadingRoot != null && loadingRoot.activeSelf != visible)
+            loadingRoot.SetActive(visible);
+    }
+
+    private void UpdateLoadingText()
+    {
+        if (loadingText == null)
+            return;
+
+        int dotCount = Mathf.FloorToInt(Time.unscaledTime / loadingDotInterval) % 4;
+        loadingText.text = loadingMessage + new string('.', dotCount);
     }
 }

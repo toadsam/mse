@@ -1,5 +1,5 @@
 using UnityEngine;
-
+using UnityEngine.SceneManagement;
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
@@ -153,5 +153,36 @@ public class GameManager : MonoBehaviour
                 SetMenuCursor();
                 break;
         }
+    }
+
+    public void ClearNetworkSessionState()
+    {
+        if (localCamera != null)
+            localCamera.Unbind();
+
+        localPlayer = null;
+        localPlayerView = null;
+        matchManager = null;
+
+        SetMenuCursor();
+    }
+
+    private void OnEnable()
+    {
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    private void OnDisable()
+    {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        cursorController = null;
+        localCamera = null;
+
+        CacheSceneReferences();
+        SetMenuCursor();
     }
 }

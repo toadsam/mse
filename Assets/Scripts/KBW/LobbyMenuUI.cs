@@ -100,7 +100,6 @@ public class LobbyMenuUI : MonoBehaviour
             if (session == null)
                 continue;
 
-            // �� �� �浵 �����ְ� ������ �� if���� �����ص� �˴ϴ�.
             if (!session.IsOpen || session.PlayerCount >= session.MaxPlayers)
                 continue;
 
@@ -134,7 +133,18 @@ public class LobbyMenuUI : MonoBehaviour
         else if (root == null && !gameObject.activeSelf)
             gameObject.SetActive(true);
 
-        if (bootstrap != null)
-            bootstrap.JoinLobby();
+        // 여기서 JoinLobby()를 직접 호출하지 않습니다.
+        // FusionBootstrap.ScheduleRejoinLobbyAfterCleanup()가 담당합니다.
+    }
+
+    public void ClearRoomList()
+    {
+        if (roomListContent == null)
+            return;
+
+        for (int i = roomListContent.childCount - 1; i >= 0; i--)
+            Destroy(roomListContent.GetChild(i).gameObject);
+
+        SetStatus("Disconnected. Reconnecting to lobby...");
     }
 }

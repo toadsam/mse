@@ -120,7 +120,7 @@ public class PlayerNetwork : NetworkBehaviour
 
     [Networked] public NetworkString<_32> PlayerName { get; private set; }
 
-    [Networked] public long BackendUserId { get; private set; } //서버 id
+    [Networked] public long BackendUserId { get; private set; } 
     [Networked] public NetworkBool HasAppliedProfile { get; private set; }
 
     [Networked] private int RoundTeleportSeq { get; set; }
@@ -291,6 +291,12 @@ public class PlayerNetwork : NetworkBehaviour
         ActiveItemUsesPerRound = 1;
         ActiveItemUsesRemaining = 1;
         MedKitHealAmount = 30;
+
+        RoundTeleportSeq = 0;
+        RoundTeleportPosition = transform.position;
+        RoundTeleportYaw = transform.eulerAngles.y;
+        lastAppliedRoundTeleportSeq = -1;
+        pendingRoundTeleportFrames = 0;
     }
 
     public override void Spawned()
@@ -580,7 +586,6 @@ public class PlayerNetwork : NetworkBehaviour
 
     private Vector3 GetFireOriginPosition()
     {
-        // 1占쏙옙占쏙옙: 占쏙옙占쏙옙 활占쏙옙 캐占쏙옙占쏙옙占쏙옙 Muzzle
         if (playerVisuals != null)
         {
             Transform activeMuzzle = playerVisuals.GetActiveMuzzle(CharacterId);
@@ -588,11 +593,9 @@ public class PlayerNetwork : NetworkBehaviour
                 return activeMuzzle.position;
         }
 
-        // 2占쏙옙占쏙옙: 占쏙옙占쏙옙 fireOrigin
         if (fireOrigin != null)
             return fireOrigin.position;
 
-        // 3占쏙옙占쏙옙: 카占쌨띰옙 占쏙옙커占쏙옙 占싣니띰옙 占시뤄옙占싱억옙 占쏙옙트 占쏙옙占쏙옙 fallback
         Quaternion yawRotation = Quaternion.Euler(0f, LookYaw, 0f);
         return transform.position + yawRotation * fallbackMuzzleLocalOffset;
     }
@@ -771,12 +774,12 @@ public class PlayerNetwork : NetworkBehaviour
 
     private void Reload()
     {
-        // 占쏙옙占쌩울옙 占쏙옙占쏙옙占쏙옙 占쏙옙占쏙옙
+        
     }
 
     private void HoldAltFire()
     {
-        // 占쏙옙占쌩울옙 占쏙옙클占쏙옙 占쏙옙占쏙옙/占쏙옙占쏙옙占쏙옙占?占쏙옙占쏙옙
+        
     }
 
     private void TriggerJumpAnimation()
@@ -977,12 +980,10 @@ public class PlayerNetwork : NetworkBehaviour
 
         if (count <= 1)
         {
-            // Rapid Barrel처占쏙옙 占쌤뱄옙占싸듸옙 占쏙옙占쏙옙占쏙옙 占쌍댐옙 占쏙옙占?
             yawOffset = Random.Range(-spreadAngle * 0.5f, spreadAngle * 0.5f);
         }
         else
         {
-            // Multi Shot처占쏙옙 占쏙옙占쏙옙 占쏙옙占싱몌옙 占쌌듸옙 占싻삼옙
             float t = count == 1 ? 0.5f : index / (float)(count - 1);
             yawOffset = Mathf.Lerp(-spreadAngle * 0.5f, spreadAngle * 0.5f, t);
         }
@@ -1142,27 +1143,6 @@ public class PlayerNetwork : NetworkBehaviour
         CharacterDisplayName = safeCharacterName;
         HasAppliedProfile = true;
     }
-
-    //서버 연결 시 교체
-    /*[Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-    public void RPC_RequestApplyProfile(byte requestedCharacterId, string requestedPlayerName, long backendUserId)
-    {
-        if (playerVisuals != null && !playerVisuals.IsValidCharacterId(requestedCharacterId))
-            requestedCharacterId = 0;
-
-        string safeName = (requestedPlayerName ?? "").Trim();
-
-        if (string.IsNullOrWhiteSpace(safeName))
-            safeName = $"Player {SlotIndex + 1}";
-
-        if (safeName.Length > LocalPlayerProfile.MaxNameLength)
-            safeName = safeName.Substring(0, LocalPlayerProfile.MaxNameLength);
-
-        CharacterId = requestedCharacterId;
-        PlayerName = safeName;
-        BackendUserId = backendUserId > 0 ? backendUserId : 0;
-        HasAppliedProfile = true;
-    }*/
 
     public Vector3 GetOrbitAccessoryPosition(int index, int count, float radius, float height)
     {
@@ -1360,7 +1340,6 @@ public class PlayerNetwork : NetworkBehaviour
         HasSelectedAugmentNet = true;
 
         RecordSelectedAugment(augmentId, match.RoundIndex);
-        match.RecordSelectedAugment(this, def);
         match.NotifyPlayerSelectedAugment(this);
     }
 

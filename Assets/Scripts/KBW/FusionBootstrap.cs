@@ -21,6 +21,11 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private PooledNetworkObjectProvider objectProvider;
     [SerializeField] private int maxPooledObjectsPerPrefab = 64;
 
+    [Header("Return Flow")]
+    [SerializeField] private bool reloadSceneWhenReturningToLobby = true;
+
+    private bool pendingSceneReloadForLobby;
+
     [SerializeField] private bool autoRejoinLobbyAfterReturn = true;
     private Coroutine rejoinLobbyRoutine;
 
@@ -36,7 +41,6 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     public event Action<IReadOnlyList<SessionInfo>> SessionListUpdated;
     public event Action<string> StatusChanged;
 
-    // ë§¤ì¹˜ ì¢…ë£Œ í›„ ë£¸ì„ ë– ë‚˜ ë¡œë¹„ë¡œ ë³µê·€í–ˆìŒì„ ì•Œë¦°ë‹¤(UIê°€ ë©”ë‰´/ë¡œë¹„ íŒ¨ë„ì„ ë‹¤ì‹œ í‘œì‹œ).
     public event Action ReturnedToLobby;
 
     private bool isBusy;
@@ -45,8 +49,12 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     private Coroutine returnToLobbyRoutine;
     private bool isReturningToLobby;
 
+    private bool isGameSessionActive;
+    private bool isApplicationQuitting;
 
-    // ï¿½ï¿½ ï¿½Ô·ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    private static int cleanLobbySceneBuildIndex = -1;
+    private static bool cleanLobbyReloading;
+
     private bool dashPressed;
     private bool abilityPressed;
     private bool reloadPressed;
@@ -55,6 +63,17 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     private bool aug3Pressed;
     private bool jumpPressed;
 
+    private void Awake()
+    {
+        Scene scene = SceneManager.GetActiveScene();
+
+        if (cleanLobbySceneBuildIndex < 0 && scene.buildIndex >= 0)
+        {
+            cleanLobbySceneBuildIndex = scene.buildIndex;
+            Debug.Log($"[FusionBootstrap] Cached clean lobby scene. Index={cleanLobbySceneBuildIndex}, Name={scene.name}");
+        }
+    }
+
     private void Start()
     {
         GameManager.Instance?.RegisterBootstrap(this);
@@ -62,7 +81,6 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
     private void Update()
     {
-        // UI ï¿½ï¿½ï¿½Â¿ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ã·ï¿½ï¿½ï¿½ ï¿½Ô·ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         if (GameManager.Instance != null && GameManager.Instance.BlocksGameplayInput)
             return;
 
@@ -84,7 +102,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         NetworkRunner existingRunner = GetComponent<NetworkRunner>();
         if (existingRunner != null)
         {
-            Debug.LogWarning("[FusionBootstrap] NetworkRunner component is still on this object. Wait before creating a new runner.");
+            Debug.LogWarning("[FusionBootstrap] NetworkRunner still exists. Wait before creating a new runner.");
             return false;
         }
 
@@ -140,6 +158,8 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         if (result.Ok)
         {
             isInLobby = true;
+            isGameSessionActive = false;
+
             StatusChanged?.Invoke("Lobby connected. Select a room or create one.");
         }
         else
@@ -221,7 +241,6 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             ObjectProvider = objectProvider
         };
 
-        // Clientï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         if (mode == GameMode.Client)
             args.EnableClientSessionCreation = false;
 
@@ -232,8 +251,9 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         if (result.Ok)
         {
             isInLobby = false;
-            StatusChanged?.Invoke($"Connected: {roomName}");
+            isGameSessionActive = true;
 
+            StatusChanged?.Invoke($"Connected: {roomName}");
             GameSessionStarted?.Invoke();
         }
         else
@@ -243,72 +263,9 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         }
     }
 
-    // ë§¤ì¹˜ ì¢…ë£Œ í›„ í˜¸ì¶œ. í˜„ì¬ Photon ë£¸ì„ ë– ë‚˜ê³  ë¡œë¹„ ìƒíƒœë¡œ ë˜ëŒë¦°ë‹¤.
-    public async void ReturnToLobby()
+    public void ReturnToLobby()
     {
-        if (isBusy)
-            return;
-
-        isBusy = true;
-        StatusChanged?.Invoke("Returning to lobby...");
-
-        if (runner != null)
-        {
-            try
-            {
-                // Only call Shutdown() when the runner is still active.
-                // If Photon already sent a Code 104 disconnect, runner.IsRunning is false
-                // and calling Shutdown() on an internally-shutting-down runner will hang
-                // indefinitely, blocking ReturnedToLobby from ever firing.
-                if (runner.IsRunning)
-                {
-                    // destroyGameObject:false is critical. The NetworkRunner is added to
-                    // THIS GameObject (the FusionBootstrap), and Shutdown()'s default
-                    // destroyGameObject:true would destroy the whole FusionBootstrap object.
-                    // That kills the lobby (LobbyMenuUI/MatchResultUI all reference this
-                    // bootstrap), so room list / create / join silently stop working and
-                    // the game appears frozen. Keep the GameObject; only tear down the runner.
-                    var shutdownTask = runner.Shutdown(destroyGameObject: false);
-                    // 5-second timeout: guards against hanging when the Photon server
-                    // has already initiated disconnect (e.g., Code 104) but IsRunning
-                    // hasn't transitioned to false yet.
-                    await Task.WhenAny(shutdownTask, Task.Delay(5000));
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning($"[FusionBootstrap] Runner shutdown error: {e.Message}");
-            }
-            finally
-            {
-                // DestroyImmediate (not Destroy) so the old components are gone THIS frame.
-                // ReturnedToLobby?.Invoke() below re-enables the lobby panel, whose
-                // LobbyMenuUI.OnEnable calls JoinLobby() -> CreateRunnerIfNeeded() within
-                // this same call stack. A deferred Destroy would leave the shut-down runner
-                // on the GameObject while a new NetworkRunner is added, so two runners would
-                // briefly coexist on one GameObject and Fusion would misbehave.
-                if (runner != null)
-                {
-                    runner.RemoveCallbacks(this);
-                    DestroyImmediate(runner);
-                    runner = null;
-                }
-                if (sceneManager != null)
-                {
-                    DestroyImmediate(sceneManager);
-                    sceneManager = null;
-                }
-            }
-        }
-
-        spawnedPlayers.Clear();
-        cachedSessions.Clear();
-        isInLobby = false;
-        isBusy = false;
-
-        // runner ì¢…ë£Œê°€ ëë‚œ ë’¤ì— ì•Œë¦°ë‹¤. êµ¬ë…ì(UI)ê°€ ë¡œë¹„ íŒ¨ë„ì„ ë‹¤ì‹œ í™œì„±í™”í•˜ë©´
-        // LobbyMenuUI.OnEnableì´ ìƒˆ runnerë¡œ JoinLobbyë¥¼ í˜¸ì¶œí•œë‹¤.
-        ReturnedToLobby?.Invoke();
+        ShutdownAndReturnToLobby("Match finished. Returning to lobby...");
     }
 
     private string BuildRoomName(string requestedRoomName)
@@ -340,7 +297,6 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             if (session == null)
                 continue;
 
-            // Last Round ï¿½Îºñ¿¡¼ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½æ¸¸ Ä³ï¿½ï¿½
             cachedSessions.Add(session);
         }
 
@@ -417,7 +373,6 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             GameManager.Instance != null &&
             GameManager.Instance.CurrentPhase == MatchPhase.Playing;
 
-        // Playing ï¿½ï¿½ï¿½Â°ï¿½ ï¿½Æ´Ï°Å³ï¿½ UI ï¿½ï¿½ï¿½Â¸ï¿½ ï¿½ï¿½ ï¿½Ô·Â¸ï¿½ ï¿½ï¿½ï¿½ï¿½
         if (!isPlaying || blockGameplayInput)
         {
             input.Set(data);
@@ -534,6 +489,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             return;
 
         isReturningToLobby = true;
+        pendingSceneReloadForLobby = reloadSceneWhenReturningToLobby;
 
         Debug.Log($"[FusionBootstrap] ShutdownAndReturnToLobby: {message}");
 
@@ -543,8 +499,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             returnToLobbyRoutine = null;
         }
 
-        // ¸ÕÀú È­¸éÀ» ·Îºñ·Î µ¹¸³´Ï´Ù.
-        ReturnToLobbyUI(message);
+        StatusChanged?.Invoke(message);
 
         NetworkRunner oldRunner = runner;
 
@@ -556,7 +511,19 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             isInLobby = false;
             ClearBufferedInput();
 
+            GameManager.Instance?.ClearNetworkSessionState();
+
+            if (pendingSceneReloadForLobby)
+            {
+                pendingSceneReloadForLobby = false;
+                isReturningToLobby = false;
+                StartCoroutine(ReloadCurrentSceneForCleanLobby());
+                return;
+            }
+
+            ReturnToLobbyUI(message);
             isReturningToLobby = false;
+            ScheduleRejoinLobbyAfterCleanup();
             return;
         }
 
@@ -572,10 +539,25 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         if (runner == oldRunner)
         {
             Debug.LogWarning("[FusionBootstrap] OnShutdown fallback cleanup.");
+
+            bool wasGameSessionActive = isGameSessionActive;
+
+            bool shouldReloadScene =
+                pendingSceneReloadForLobby ||
+                (!isApplicationQuitting && wasGameSessionActive);
+
             CleanupRunner(oldRunner);
-            ReturnToLobbyUI(message);
+
             isReturningToLobby = false;
 
+            if (shouldReloadScene)
+            {
+                pendingSceneReloadForLobby = false;
+                StartCoroutine(ReloadCurrentSceneForCleanLobby());
+                yield break;
+            }
+
+            ReturnToLobbyUI(message);
             ScheduleRejoinLobbyAfterCleanup();
         }
     }
@@ -585,23 +567,50 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     {
         Debug.Log($"[FusionBootstrap] OnShutdown: {shutdownReason}");
 
+        bool wasGameSessionActive = isGameSessionActive;
+
+        bool shouldReloadScene =
+            pendingSceneReloadForLobby ||
+            (!isApplicationQuitting && wasGameSessionActive);
+
         CleanupRunner(callbackRunner);
-        ReturnToLobbyUI($"Disconnected: {shutdownReason}");
 
         isReturningToLobby = false;
 
+        if (shouldReloadScene)
+        {
+            pendingSceneReloadForLobby = false;
+            StartCoroutine(ReloadCurrentSceneForCleanLobby());
+            return;
+        }
+
+        ReturnToLobbyUI($"Disconnected: {shutdownReason}");
         ScheduleRejoinLobbyAfterCleanup();
     }
+
 
     public void OnDisconnectedFromServer(NetworkRunner callbackRunner, NetDisconnectReason reason)
     {
         Debug.Log($"[FusionBootstrap] OnDisconnectedFromServer: {reason}");
 
+        bool wasGameSessionActive = isGameSessionActive;
+
+        bool shouldReloadScene =
+            pendingSceneReloadForLobby ||
+            (!isApplicationQuitting && wasGameSessionActive);
+
         CleanupRunner(callbackRunner);
-        ReturnToLobbyUI($"Disconnected: {reason}");
 
         isReturningToLobby = false;
 
+        if (shouldReloadScene)
+        {
+            pendingSceneReloadForLobby = false;
+            StartCoroutine(ReloadCurrentSceneForCleanLobby());
+            return;
+        }
+
+        ReturnToLobbyUI($"Disconnected: {reason}");
         ScheduleRejoinLobbyAfterCleanup();
     }
 
@@ -620,19 +629,50 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         if (callbackRunner != null)
             Destroy(callbackRunner);
 
+        // Áß¿ä: ÀÌÀü Runner¿¡ ºÙ¾î ÀÖ´ø SceneManagerµµ Á¦°ÅÇÕ´Ï´Ù.
+        DestroySceneManagerComponent();
+
+        if (objectProvider == null)
+            objectProvider = GetComponent<PooledNetworkObjectProvider>();
+
+        if (objectProvider != null)
+            objectProvider.ClearPool();
+
+        DestroyLeftoverRuntimeObjects();
+
         spawnedPlayers.Clear();
         cachedSessions.Clear();
 
         isBusy = false;
         isInLobby = false;
+        isGameSessionActive = false;
 
         ClearBufferedInput();
+
+        GameManager.Instance?.ClearNetworkSessionState();
+    }
+
+    private void DestroySceneManagerComponent()
+    {
+        NetworkSceneManagerDefault[] managers =
+            GetComponents<NetworkSceneManagerDefault>();
+
+        foreach (NetworkSceneManagerDefault manager in managers)
+        {
+            if (manager != null)
+                Destroy(manager);
+        }
+
+        sceneManager = null;
+
+        Debug.Log("[FusionBootstrap] NetworkSceneManagerDefault destroyed.");
     }
 
     private void ReturnToLobbyUI(string message)
     {
         Debug.Log($"[FusionBootstrap] ReturnToLobbyUI: {message}");
 
+        GameManager.Instance?.ClearNetworkSessionState();
         GameManager.Instance?.SetMenuCursor();
 
         MainMenuFlowUI menu =
@@ -648,11 +688,28 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             menu.ShowLobbyDirect();
         }
 
+        LobbyMenuUI lobby =
+            FindFirstObjectByType<LobbyMenuUI>(FindObjectsInactive.Include);
+
+        if (lobby != null)
+        {
+            lobby.ClearRoomList();
+            lobby.ShowLobby();
+        }
+        else
+        {
+            Debug.LogWarning("[FusionBootstrap] LobbyMenuUI not found.");
+        }
+
         StatusChanged?.Invoke(message);
+
+        ReturnedToLobby?.Invoke();
     }
 
     private void OnApplicationQuit()
     {
+        isApplicationQuitting = true;
+
         if (runner != null)
         {
             Debug.Log("[FusionBootstrap] OnApplicationQuit - shutting down runner.");
@@ -676,7 +733,6 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
     private IEnumerator RejoinLobbyAfterCleanupRoutine()
     {
-        // Destroy(callbackRunner)°¡ ½ÇÁ¦·Î ¹İ¿µµÉ ½Ã°£À» Áİ´Ï´Ù.
         yield return null;
         yield return null;
 
@@ -688,11 +744,16 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         if (isBusy)
             yield break;
 
-        // ¾ÆÁ÷ °°Àº GameObject¿¡ NetworkRunner°¡ ³²¾Æ ÀÖÀ¸¸é ÇÑ ¹ø ´õ ±â´Ù¸³´Ï´Ù.
         NetworkRunner existingRunner = GetComponent<NetworkRunner>();
-        if (existingRunner != null)
+        NetworkSceneManagerDefault existingSceneManager =
+            GetComponent<NetworkSceneManagerDefault>();
+
+        if (existingRunner != null || existingSceneManager != null)
         {
-            Debug.LogWarning("[FusionBootstrap] NetworkRunner still exists. Waiting one more frame before rejoining lobby.");
+            Debug.LogWarning(
+                "[FusionBootstrap] Old network components still exist. Waiting one more frame before rejoining lobby."
+            );
+
             ScheduleRejoinLobbyAfterCleanup();
             yield break;
         }
@@ -701,6 +762,66 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         JoinLobby();
     }
 
+    private IEnumerator ReloadCurrentSceneForCleanLobby()
+    {
+        if (cleanLobbyReloading)
+            yield break;
+
+        cleanLobbyReloading = true;
+
+        Scene activeScene = SceneManager.GetActiveScene();
+
+        int sceneIndex = cleanLobbySceneBuildIndex >= 0
+            ? cleanLobbySceneBuildIndex
+            : activeScene.buildIndex;
+
+        Debug.Log(
+            $"[FusionBootstrap] Loading clean lobby scene. " +
+            $"TargetIndex={sceneIndex}, ActiveScene={activeScene.name}, ActiveIndex={activeScene.buildIndex}"
+        );
+
+        if (sceneIndex < 0)
+        {
+            cleanLobbyReloading = false;
+
+            Debug.LogError("[FusionBootstrap] Cannot reload scene because sceneIndex is invalid.");
+
+            ReturnToLobbyUI("Disconnected. Failed to reload scene.");
+            ScheduleRejoinLobbyAfterCleanup();
+            yield break;
+        }
+
+        SceneManager.LoadScene(sceneIndex, LoadSceneMode.Single);
+
+        cleanLobbyReloading = false;
+        yield break;
+    }
+
+    private void DestroyLeftoverRuntimeObjects()
+    {
+        DestroyLeftoverObjectsOfType<PlayerNetwork>();
+        DestroyLeftoverObjectsOfType<RifleProjectile>();
+        DestroyLeftoverObjectsOfType<ThrowableItemProjectile>();
+        DestroyLeftoverObjectsOfType<SmokeZone>();
+        DestroyLeftoverObjectsOfType<NetworkTimedVfx>();
+        DestroyLeftoverObjectsOfType<ThrowingAxeProjectile>();
+    }
+
+    private void DestroyLeftoverObjectsOfType<T>() where T : Component
+    {
+        T[] objects = FindObjectsByType<T>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None
+        );
+
+        foreach (T obj in objects)
+        {
+            if (obj == null)
+                continue;
+
+            Destroy(obj.gameObject);
+        }
+    }
     public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
     public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
     public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
