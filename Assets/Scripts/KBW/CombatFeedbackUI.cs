@@ -131,8 +131,7 @@ public class CombatFeedbackUI : MonoBehaviour
 
         SetHitMarkerAlpha(1f);
 
-        if (audioSource != null && hitMarkerSound != null)
-            audioSource.PlayOneShot(hitMarkerSound);
+        AudioSettingsUI.PlaySfx(audioSource, hitMarkerSound);
     }
 
     private void TriggerDamageFlash()
@@ -144,8 +143,7 @@ public class CombatFeedbackUI : MonoBehaviour
 
         SetDamageFlashAlpha(damageFlashMaxAlpha);
 
-        if (audioSource != null && damagedSound != null)
-            audioSource.PlayOneShot(damagedSound);
+        AudioSettingsUI.PlaySfx(audioSource, damagedSound);
     }
 
     private void UpdateHitMarker(float deltaTime)

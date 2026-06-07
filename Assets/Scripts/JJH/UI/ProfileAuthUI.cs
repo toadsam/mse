@@ -46,16 +46,27 @@ public class ProfileAuthUI : MonoBehaviour
     {
         if (popupPanel != null) return;
 
-        Canvas canvas = UnityEngine.Object.FindObjectOfType<Canvas>();
-        if (canvas == null) return;
-
-        Transform popupT = canvas.transform.Find("AuthPopupPanel");
+        Transform popupT = FindAuthPopupPanel();
         if (popupT == null) return;
 
         Transform box = popupT.Find("PopupBox");
         popupPanel       = popupT.gameObject;
         popupMessageText = box?.Find("AuthPopupMessage")?.GetComponent<TMP_Text>();
         popupOkButton    = box?.Find("AuthPopupOkButton")?.GetComponent<Button>();
+    }
+
+    private Transform FindAuthPopupPanel()
+    {
+        Canvas[] canvases = FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+        foreach (Canvas canvas in canvases)
+        {
+            Transform popup = canvas.transform.Find("AuthPopupPanel");
+            if (popup != null)
+                return popup;
+        }
+
+        return null;
     }
 
     private void OnEnable()

@@ -5,7 +5,7 @@ using UnityEngine.UI;
 public class MainMenuFlowUI : MonoBehaviour
 {
     [Header("Header")]
-    [Tooltip("?⑤꼸 諛??곷떒 以묒븰????긽 ?쒖떆?섎뒗 LAST ROUND ??댄? 洹몃９?낅땲??")]
+    [Tooltip("Title header shown at the top of the main menu.")]
     [SerializeField] private GameObject titleHeader;
 
     [Header("Panels")]
@@ -15,7 +15,7 @@ public class MainMenuFlowUI : MonoBehaviour
     [SerializeField] private GameObject lobbyPanel;
 
     [Header("World Preview")]
-    [Tooltip("Canvas 諛??붾뱶??諛곗튂??罹먮┃???꾨━酉?猷⑦듃?낅땲??")]
+    [Tooltip("World-space character preview root placed outside the Canvas.")]
     [SerializeField] private GameObject characterPreviewArea;
 
     [Header("Title")]
@@ -109,10 +109,7 @@ public class MainMenuFlowUI : MonoBehaviour
 
     private void ResolvePopupRefs()
     {
-        Canvas canvas = FindFirstObjectByType<Canvas>();
-        if (canvas == null) return;
-
-        Transform popupT = canvas.transform.Find("AuthPopupPanel");
+        Transform popupT = FindAuthPopupPanel();
         if (popupT == null) return;
 
         _popupPanel = popupT.gameObject;
@@ -120,6 +117,20 @@ public class MainMenuFlowUI : MonoBehaviour
         Transform msgT = popupT.Find("PopupBox/AuthPopupMessage");
         if (msgT != null)
             _popupMessageText = msgT.GetComponent<TMP_Text>();
+    }
+
+    private Transform FindAuthPopupPanel()
+    {
+        Canvas[] canvases = FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+        foreach (Canvas canvas in canvases)
+        {
+            Transform popup = canvas.transform.Find("AuthPopupPanel");
+            if (popup != null)
+                return popup;
+        }
+
+        return null;
     }
 
     private void ShowPopup(string message)
@@ -295,7 +306,7 @@ public class MainMenuFlowUI : MonoBehaviour
 
     private void OnSettingClicked()
     {
-        Debug.Log("Setting button clicked");
+        AudioSettingsUI.OpenSettings();
     }
 
     private void QuitGame()
