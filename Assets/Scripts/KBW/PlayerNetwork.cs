@@ -727,7 +727,7 @@ public class PlayerNetwork : NetworkBehaviour
 
     private void UseAbility()
     {
-if (!HasStateAuthority)
+        if (!HasStateAuthority)
             return;
 
         MatchManager match = MatchManager.Instance;
