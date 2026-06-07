@@ -8,7 +8,7 @@ import org.springframework.http.HttpStatus;
 public enum ErrorCode {
     INVALID_REQUEST(HttpStatus.BAD_REQUEST, "Invalid request"),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User not found"),
-    EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "Email already exists"),
+    EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "User ID already exists"),
     NICKNAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "Nickname already exists"),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Invalid credentials"),
     WRONG_PASSWORD(HttpStatus.UNAUTHORIZED, "Wrong password"),

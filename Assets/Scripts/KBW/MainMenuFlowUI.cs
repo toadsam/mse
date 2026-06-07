@@ -97,7 +97,6 @@ public class MainMenuFlowUI : MonoBehaviour
     {
         selectedCharacterId = 0;
         RefreshCharacterPreview();
-        ShowTitle();
         ResolvePopupRefs();
 
         if (profileToCharacterButton != null)
@@ -105,6 +104,16 @@ public class MainMenuFlowUI : MonoBehaviour
 
         if (profilePanel != null && profilePanel.TryGetComponent(out ProfileAuthUI authUI))
             authUI.OnProceedRequested += ShowCharacterSelect;
+
+        if (BackendSession.IsLoggedIn && LocalPlayerProfile.HasProfile)
+        {
+            Debug.Log("[MainMenuFlowUI] Restore lobby after scene reload.");
+            ShowLobbyDirect();
+        }
+        else
+        {
+            ShowTitle();
+        }
     }
 
     private void ResolvePopupRefs()
@@ -229,7 +238,7 @@ public class MainMenuFlowUI : MonoBehaviour
         if (continueButton != null) continueButton.interactable = true;
 
         Debug.LogWarning($"[MainMenu] Failed to update nickname: {error}");
-        ShowPopup($"Failed to update nickname.\n{error}");
+        ShowPopup($"Failed to update nickname.\n{ErrorMessageFormatter.ToFriendly(error)}");
     }
 
     private void SelectPreviousCharacter()

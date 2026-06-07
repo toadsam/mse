@@ -10,7 +10,7 @@ public class MatchManager : NetworkBehaviour
     [SerializeField] private AugmentDatabase augmentDatabase;
 
     [Header("Match Rules")]
-    [SerializeField] private int playersRequiredToStart = 2; // 혼占쏙옙 占쌓쏙옙트 占쏙옙占싱몌옙 1, 占쏙옙占쏙옙 占쏙옙티 占쌓쏙옙트占쏙옙 2
+    [SerializeField] private int playersRequiredToStart = 2; 
     [SerializeField] private int roundsToWin = 3;
     [SerializeField] private float roundIntroSeconds = 2.0f;
     [SerializeField] private float roundResultSeconds = 3.0f;
@@ -44,41 +44,32 @@ public class MatchManager : NetworkBehaviour
     [Networked] public int RoundWinnerSlot { get; private set; }
     [Networked] public int MatchWinnerSlot { get; private set; }
 
-    // 留ㅼ튂 吏???쒓컙(珥?. 寃곌낵 ?붾㈃ ?쒖떆?? ?몄뒪?멸? 留ㅼ튂 醫낅즺 ???뺤젙?쒕떎.
     [Networked] public float MatchDurationSeconds { get; private set; }
     [Networked] private float MatchStartSimTime { get; set; }
 
-    // 諛깆뿏?????寃곌낵 ?곹깭(寃곌낵 ?붾㈃??????깃났 ???쒖떆?섎룄濡??섎뒗 ?좏샇).
-    // Resolved: ????쒕룄/?ㅽ궢???앸궓, Succeeded: DB ????깃났.
+
     [Networked] public NetworkBool ResultSaveResolved { get; private set; }
     [Networked] public NetworkBool ResultSaveSucceeded { get; private set; }
 
-    // ?몄뒪??肄쒕갚(肄붾（???먯꽌 ?명똿 ??FixedUpdateNetwork?먯꽌 ?ㅽ듃?뚰겕 ?곹깭濡?誘몃윭留?
     private bool pendingSaveResolved;
     private bool pendingSaveSucceeded;
+
+    private int lastLoggedLobbyPlayerCount = -1;
 
     [Networked] private TickTimer PhaseTimer { get; set; }
 
     private int lastAppliedArenaIndex = -999;
 
-    // 留ㅼ튂 寃곌낵瑜?諛깆뿏??MySQL)濡??몄뒪?멸? 1?뚮쭔 ?꾩넚?섎룄濡?留됰뒗 ?뚮옒洹?
+
     private bool matchResultReported = false;
+
+    private int lastRoundResetBeforePlaying = -1;
 
     public bool IsNetworkSpawned { get; private set; }
     public MatchPhase CurrentPhase => IsNetworkSpawned ? Phase : MatchPhase.Lobby;
 
     [SerializeField] private bool submitMatchResultToBackend = true;
     [SerializeField] private float returnToLobbyAfterMatchSeconds = 6f;
-
-    private struct SelectedAugmentRecord
-    {
-        public int augmentId;
-        public string augmentName;
-        public int selectedRound;
-        public int selectedOrder;
-    }
-
-    private readonly Dictionary<int, List<SelectedAugmentRecord>> selectedAugmentsBySlot = new();
 
     private void Awake()
     {
@@ -93,6 +84,12 @@ public class MatchManager : NetworkBehaviour
 
     public override void Spawned()
     {
+        Instance = this;
+
+        Debug.Log(
+            $"[MatchManager] Spawned. HasStateAuthority={HasStateAuthority}, Runner={Runner}"
+        );
+
         if (HasStateAuthority)
         {
             Phase = MatchPhase.Lobby;
@@ -101,9 +98,15 @@ public class MatchManager : NetworkBehaviour
             Player1Wins = 0;
             RoundWinnerSlot = -1;
             MatchWinnerSlot = -1;
+
+            ActiveArenaIndex = -1;
+            AugmentChooserMask = 0;
+            ResultSaveResolved = false;
+            ResultSaveSucceeded = false;
         }
 
         IsNetworkSpawned = true;
+        lastAppliedArenaIndex = -999;
 
         GameManager.Instance?.RegisterMatchManager(this);
         GameManager.Instance?.SyncCursorWithPhase();
@@ -117,9 +120,20 @@ public class MatchManager : NetworkBehaviour
         switch (Phase)
         {
             case MatchPhase.Lobby:
-                if (GetAllPlayers().Count >= playersRequiredToStart)
-                    StartMatchFlow();
-                break;
+                {
+                    int count = GetAllPlayers().Count;
+
+                    if (count != lastLoggedLobbyPlayerCount)
+                    {
+                        lastLoggedLobbyPlayerCount = count;
+                        Debug.Log($"[MatchManager] Lobby player count={count}, Required={playersRequiredToStart}, HasStateAuthority={HasStateAuthority}");
+                    }
+
+                    if (count >= playersRequiredToStart)
+                        StartMatchFlow();
+
+                    break;
+                }
 
             case MatchPhase.RoundIntro:
                 if (PhaseTimer.ExpiredOrNotRunning(Runner))
@@ -142,7 +156,6 @@ public class MatchManager : NetworkBehaviour
                 break;
 
             case MatchPhase.MatchResult:
-                // 諛깆뿏?????肄쒕갚(肄붾（???먯꽌 ?명똿??寃곌낵瑜??ㅽ듃?뚰겕 ?곹깭濡?誘몃윭留곹븳??
                 if (pendingSaveResolved && !ResultSaveResolved)
                 {
                     ResultSaveSucceeded = pendingSaveSucceeded;
@@ -168,14 +181,15 @@ public class MatchManager : NetworkBehaviour
         if (!HasStateAuthority)
             return;
 
+        Debug.Log("[MatchManager] StartMatchFlow");
+
         RoundIndex = 1;
         Player0Wins = 0;
         Player1Wins = 0;
         RoundWinnerSlot = -1;
         MatchWinnerSlot = -1;
-
+        lastRoundResetBeforePlaying = -1;
         matchResultReported = false;
-        selectedAugmentsBySlot.Clear();
 
         MatchStartSimTime = (float)Runner.SimulationTime;
         MatchDurationSeconds = 0f;
@@ -185,7 +199,6 @@ public class MatchManager : NetworkBehaviour
         pendingSaveSucceeded = false;
         usedOfferedAugmentIds.Clear();
 
-        // ??留ㅼ튂 ?쒖옉 ??媛??뚮젅?댁뼱??augment ?좏깮 ?꾩쟻 湲곕줉 珥덇린??
         foreach (PlayerNetwork player in GetAllPlayers())
             player.ResetAugmentHistory();
 
@@ -248,7 +261,7 @@ public class MatchManager : NetworkBehaviour
 
         Phase = MatchPhase.RoundIntro;
 
-        ChooseArenaForRound();       // 占쏙옙 占쏙옙 占쌩곤옙
+        ChooseArenaForRound();       
         ResetAllPlayersForRound();
 
         PhaseTimer = TickTimer.CreateFromSeconds(Runner, roundIntroSeconds);
@@ -292,6 +305,20 @@ public class MatchManager : NetworkBehaviour
     {
         if (!HasStateAuthority)
             return;
+
+        if (lastRoundResetBeforePlaying != RoundIndex)
+        {
+            Debug.Log($"[MatchManager] Safety reset before Playing. Round={RoundIndex}, ActiveArenaIndex={ActiveArenaIndex}");
+
+            if (GetActiveArena() == null)
+            {
+                Debug.LogWarning("[MatchManager] Active arena is invalid before Playing. Choosing arena again.");
+                ChooseArenaForRound();
+            }
+
+            ResetAllPlayersForRound();
+            lastRoundResetBeforePlaying = RoundIndex;
+        }
 
         Phase = MatchPhase.Playing;
         PhaseTimer = default;
@@ -342,8 +369,15 @@ public class MatchManager : NetworkBehaviour
         }
     }
 
-    // 留ㅼ튂 醫낅즺 ???몄뒪??StateAuthority)媛 理쒖쥌 寃곌낵瑜?諛깆뿏?쒕줈 1???꾩넚?쒕떎.
-    // ????ㅽ뙣/鍮꾨줈洹몄씤?댁뼱??寃뚯엫 寃곌낵 ?붾㈃? ?뺤긽 吏꾪뻾?쒕떎(濡쒓렇留??④?).
+    private void ResolveResultSaveFailure(string reason)
+    {
+        Debug.LogWarning(reason);
+
+        matchResultReported = true;
+        pendingSaveSucceeded = false;
+        pendingSaveResolved = true;
+    }
+
     private void ReportMatchResultToBackend()
     {
         if (!HasStateAuthority)
@@ -369,7 +403,7 @@ public class MatchManager : NetworkBehaviour
 
         if (slot0 == null || slot1 == null)
         {
-            Debug.LogWarning("[MatchManager] 留ㅼ튂 寃곌낵 ????ㅽ궢: ???뚮젅?댁뼱瑜?李얠? 紐삵뻽???곌껐 醫낅즺 ??.");
+            ResolveResultSaveFailure("[MatchManager] Cannot save result. Both players are not found.");
             return;
         }
 
@@ -378,21 +412,17 @@ public class MatchManager : NetworkBehaviour
 
         if (player1Id <= 0 || player2Id <= 0 || player1Id == player2Id)
         {
-            Debug.LogWarning($"[MatchManager] 留ㅼ튂 寃곌낵 ????ㅽ궢: ?좏슚?섏? ?딆? backend userId (p1={player1Id}, p2={player2Id}). 寃뚯뒪??鍮꾨줈洹몄씤 ?먮뒗 誘몃룞湲고솕?????덉뼱.");
+            ResolveResultSaveFailure($"[MatchManager] Invalid backend userId. p1={player1Id}, p2={player2Id}");
             return;
         }
 
         long winnerId = MatchWinnerSlot == 0 ? player1Id : player2Id;
 
-        // ?ш린源뚯? ?붿쑝硫??꾩넚 ?쒕룄 ??以묐났 諛⑹? ?뚮옒洹몃? 癒쇱? ?몄슫??
         matchResultReported = true;
 
         if (MatchResultService.Instance == null)
         {
-            Debug.LogWarning("[MatchManager] MatchResultService.Instance媛 ?놁뼱 留ㅼ튂 寃곌낵瑜???ν븯吏 紐삵뻽??");
-            // ???遺덇? ??寃곌낵 ?붾㈃? ?뺤긽 ?쒖떆?섎룄濡?resolved 泥섎━(????ㅽ뙣 ?곹깭).
-            pendingSaveSucceeded = false;
-            pendingSaveResolved = true;
+            ResolveResultSaveFailure("[MatchManager] MatchResultService.Instance is missing.");
             return;
         }
 
@@ -416,7 +446,6 @@ public class MatchManager : NetworkBehaviour
             });
     }
 
-    // ???뚮젅?댁뼱???됰꽕??罹먮┃???좏깮 augment ?대쫫/?먯닔瑜?梨꾩슫 ????붿껌??留뚮뱺??
     private MatchResultRequest BuildMatchResultRequest(PlayerNetwork slot0, PlayerNetwork slot1, long winnerId)
     {
         MatchResultRequest request = new MatchResultRequest
@@ -449,13 +478,13 @@ public class MatchManager : NetworkBehaviour
             string augmentName = def != null ? def.displayName : null;
 
             if (string.IsNullOrEmpty(augmentName))
-                continue; // ?대쫫???????녿뒗 ??ぉ? ??ν븯吏 ?딅뒗??
+                continue; 
 
             augments.Add(new MatchPlayerAugmentRequest
             {
-                augmentId = 0, // Unity augment??DB augments? 留ㅽ븨?섏? ?딆쓬 ???대쫫?쇰줈留????
+                augmentId = 0, 
                 augmentName = augmentName,
-                selectedOrder = i + 1,               // ?좎?蹂꾨줈 (round, order) ?좎씪?섎룄濡??꾩뿭 利앷?.
+                selectedOrder = i + 1,              
                 selectedRound = round > 0 ? round : i + 1
             });
         }
@@ -589,11 +618,9 @@ public class MatchManager : NetworkBehaviour
         if (player == null)
             return false;
 
-        // 첫 占쏙옙占쏙옙 占쏙옙占쏙옙 占쏙옙占쏙옙占쏙옙 占쏙옙 占쏙옙 占쏙옙占쏙옙
         if (RoundIndex == 1 && Player0Wins == 0 && Player1Wins == 0)
             return true;
 
-        // 占쏙옙占식울옙占쏙옙 占쏙옙占쏙옙 占쏙옙占쏙옙 占쏙옙占쌘몌옙 占쏙옙占쏙옙
         if (RoundWinnerSlot < 0)
             return false;
 
@@ -615,14 +642,12 @@ public class MatchManager : NetworkBehaviour
             if (player.Object == null)
                 continue;
 
-            // 占쏙옙占쏙옙 Runner占쏙옙 占쏙옙占쏙옙 占시뤄옙占싱어만 占쏙옙占?
             if (Runner != null && player.Runner != Runner)
                 continue;
 
             players.Add(player);
         }
 
-        // 占쏙옙占쏙옙 占쏙옙占쏙옙占쏙옙 占쌓삼옙 占쏙옙占쏙옙占싹듸옙占쏙옙 占쏙옙占쏙옙
         players.Sort((a, b) => a.SlotIndex.CompareTo(b.SlotIndex));
 
         return players;
@@ -723,43 +748,16 @@ public class MatchManager : NetworkBehaviour
         }
     }
 
-    public void RecordSelectedAugment(PlayerNetwork player, AugmentDefinition def)
-    {
-        if (!HasStateAuthority)
-            return;
-
-        if (player == null || def == null)
-            return;
-
-        int slot = player.SlotIndex;
-
-        if (!selectedAugmentsBySlot.TryGetValue(slot, out List<SelectedAugmentRecord> records))
-        {
-            records = new List<SelectedAugmentRecord>();
-            selectedAugmentsBySlot.Add(slot, records);
-        }
-
-        records.Add(new SelectedAugmentRecord
-        {
-            augmentId = def.id,
-            augmentName = def.displayName,
-            selectedRound = RoundIndex,
-            selectedOrder = records.Count + 1
-        });
-    }
-
     public AugmentDefinition GetAugmentById(int id)
     {
         return augmentDatabase != null ? augmentDatabase.GetById(id) : null;
     }
 
-    // 寃곌낵 ?붾㈃?? ?щ’(0/1)???대떦?섎뒗 ?뚮젅?댁뼱瑜?諛섑솚?쒕떎.
     public PlayerNetwork GetPlayerBySlot(int slot)
     {
         return GetAllPlayers().Find(p => p.SlotIndex == slot);
     }
 
-    // 寃곌낵 ?붾㈃?? ?대떦 ?뚮젅?댁뼱媛 留ㅼ튂 以??좏깮??augment ?쒖떆 ?대쫫 紐⑸줉.
     public List<string> GetSelectedAugmentNames(PlayerNetwork player)
     {
         List<string> names = new List<string>();

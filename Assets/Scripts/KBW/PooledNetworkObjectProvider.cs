@@ -137,4 +137,24 @@ public class PooledNetworkObjectProvider : Fusion.Behaviour, INetworkObjectProvi
 
         return runner.Prefabs.GetId(prefabGuid);
     }
+
+    public void ClearPool()
+    {
+        foreach (var pair in freeObjects)
+        {
+            Queue<NetworkObject> queue = pair.Value;
+
+            while (queue.Count > 0)
+            {
+                NetworkObject obj = queue.Dequeue();
+
+                if (obj != null)
+                    Destroy(obj.gameObject);
+            }
+        }
+
+        freeObjects.Clear();
+
+        Debug.Log("[PooledNetworkObjectProvider] Pool cleared.");
+    }
 }
