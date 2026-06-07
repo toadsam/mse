@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -44,8 +45,13 @@ public class MatchResultUI : MonoBehaviour
 
     private bool isShown;
     private bool isReturning;
+    private bool loadingVisible;
+    private bool loadingVisibilityInitialized;
     private float matchResultEnteredTime = -1f;
     private float shownTime = -1f;
+    private UIPanelAnimator resultAnimator;
+    private UIPanelAnimator loadingAnimator;
+    private Coroutine scoreRoutine;
 
     private void Awake()
     {
@@ -56,10 +62,14 @@ public class MatchResultUI : MonoBehaviour
             bootstrap = FindFirstObjectByType<FusionBootstrap>();
 
         if (returnToLobbyButton != null)
+        {
+            UIAnimationBootstrap.InstallButton(returnToLobbyButton);
             returnToLobbyButton.onClick.AddListener(OnReturnToLobbyClicked);
+        }
 
-        SetVisible(false);
-        SetLoadingVisible(false);
+        PrepareAnimators();
+        SetVisible(false, true);
+        SetLoadingVisible(false, true);
     }
 
     private void Update()
@@ -159,11 +169,14 @@ public class MatchResultUI : MonoBehaviour
         }
 
         // Player1 / Player2 Score (닉네임 기준)
+        if (scoreRoutine != null)
+            StopCoroutine(scoreRoutine);
+
         if (player1ScoreText != null)
-            player1ScoreText.text = $"{name0}: {match.Player0Wins}";
+            player1ScoreText.text = $"{name0}: 0";
 
         if (player2ScoreText != null)
-            player2ScoreText.text = $"{name1}: {match.Player1Wins}";
+            player2ScoreText.text = $"{name1}: 0";
 
         // Selected Character
         if (charactersText != null)
@@ -196,6 +209,8 @@ public class MatchResultUI : MonoBehaviour
         }
 
         SetVisible(true);
+        PlayWinnerIntro();
+        scoreRoutine = StartCoroutine(AnimateScores(name0, name1, match.Player0Wins, match.Player1Wins));
     }
 
     private void UpdateAutoReturnCountdown()
@@ -291,16 +306,60 @@ public class MatchResultUI : MonoBehaviour
         return $"{minutes:00}:{secs:00}";
     }
 
-    private void SetVisible(bool visible)
+    private void SetVisible(bool visible, bool instant = false)
     {
-        if (root != null && root.activeSelf != visible)
+        if (root == null)
+            return;
+
+        if (resultAnimator == null)
+        {
+            resultAnimator = UIPanelAnimator.Ensure(root);
+            if (resultAnimator != null)
+                resultAnimator.Configure(new Vector2(0f, -14f), 0.96f, 0.18f, 0.1f);
+        }
+
+        if (resultAnimator != null)
+        {
+            if (visible)
+                resultAnimator.Show(instant);
+            else
+                resultAnimator.Hide(instant);
+        }
+        else if (root.activeSelf != visible)
+        {
             root.SetActive(visible);
+        }
     }
 
-    private void SetLoadingVisible(bool visible)
+    private void SetLoadingVisible(bool visible, bool instant = false)
     {
-        if (loadingRoot != null && loadingRoot.activeSelf != visible)
+        if (loadingRoot == null)
+            return;
+
+        if (loadingVisibilityInitialized && loadingVisible == visible)
+            return;
+
+        loadingVisibilityInitialized = true;
+        loadingVisible = visible;
+
+        if (loadingAnimator == null)
+        {
+            loadingAnimator = UIPanelAnimator.Ensure(loadingRoot);
+            if (loadingAnimator != null)
+                loadingAnimator.Configure(new Vector2(0f, -8f), 0.98f, 0.14f, 0.08f);
+        }
+
+        if (loadingAnimator != null)
+        {
+            if (visible)
+                loadingAnimator.Show(instant);
+            else
+                loadingAnimator.Hide(instant);
+        }
+        else if (loadingRoot.activeSelf != visible)
+        {
             loadingRoot.SetActive(visible);
+        }
     }
 
     private void UpdateLoadingText()
@@ -310,5 +369,62 @@ public class MatchResultUI : MonoBehaviour
 
         int dotCount = Mathf.FloorToInt(Time.unscaledTime / loadingDotInterval) % 4;
         loadingText.text = loadingMessage + new string('.', dotCount);
+    }
+
+    private void PrepareAnimators()
+    {
+        if (root != null)
+        {
+            resultAnimator = UIPanelAnimator.Ensure(root);
+            if (resultAnimator != null)
+                resultAnimator.Configure(new Vector2(0f, -14f), 0.96f, 0.18f, 0.1f);
+        }
+
+        if (loadingRoot != null)
+        {
+            loadingAnimator = UIPanelAnimator.Ensure(loadingRoot);
+            if (loadingAnimator != null)
+                loadingAnimator.Configure(new Vector2(0f, -8f), 0.98f, 0.14f, 0.08f);
+        }
+    }
+
+    private void PlayWinnerIntro()
+    {
+        if (winnerText == null)
+            return;
+
+        UIPanelAnimator animator = UIPanelAnimator.Ensure(winnerText.gameObject);
+        if (animator != null)
+            animator.Punch(1.08f, 0.22f, 0.08f);
+    }
+
+    private IEnumerator AnimateScores(string name0, string name1, int target0, int target1)
+    {
+        const float duration = 0.55f;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / duration));
+            int score0 = Mathf.RoundToInt(Mathf.Lerp(0f, target0, t));
+            int score1 = Mathf.RoundToInt(Mathf.Lerp(0f, target1, t));
+
+            if (player1ScoreText != null)
+                player1ScoreText.text = $"{name0}: {score0}";
+
+            if (player2ScoreText != null)
+                player2ScoreText.text = $"{name1}: {score1}";
+
+            yield return null;
+        }
+
+        if (player1ScoreText != null)
+            player1ScoreText.text = $"{name0}: {target0}";
+
+        if (player2ScoreText != null)
+            player2ScoreText.text = $"{name1}: {target1}";
+
+        scoreRoutine = null;
     }
 }

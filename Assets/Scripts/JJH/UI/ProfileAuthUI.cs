@@ -25,6 +25,8 @@ public class ProfileAuthUI : MonoBehaviour
 
     private bool _pendingProceed;
     private bool _lastActionWasLogin;
+    private UIPanelAnimator _popupAnimator;
+    private UIPanelAnimator _popupBoxAnimator;
 
     private void Awake()
     {
@@ -39,20 +41,35 @@ public class ProfileAuthUI : MonoBehaviour
         if (popupOkButton != null)
             popupOkButton.onClick.AddListener(OnPopupOkClicked);
 
-        HidePopup();
+        HidePopup(true);
     }
 
     private void ResolvePopupRefs()
     {
-        if (popupPanel != null) return;
-
-        Transform popupT = FindAuthPopupPanel();
-        if (popupT == null) return;
+        Transform popupT = popupPanel != null ? popupPanel.transform : FindAuthPopupPanel();
+        if (popupT == null)
+            return;
 
         Transform box = popupT.Find("PopupBox");
         popupPanel       = popupT.gameObject;
-        popupMessageText = box?.Find("AuthPopupMessage")?.GetComponent<TMP_Text>();
-        popupOkButton    = box?.Find("AuthPopupOkButton")?.GetComponent<Button>();
+
+        if (popupMessageText == null)
+            popupMessageText = box?.Find("AuthPopupMessage")?.GetComponent<TMP_Text>();
+
+        if (popupOkButton == null)
+            popupOkButton = box?.Find("AuthPopupOkButton")?.GetComponent<Button>();
+
+        _popupAnimator = UIPanelAnimator.Ensure(popupPanel);
+        if (_popupAnimator != null)
+            _popupAnimator.Configure(Vector2.zero, 1f, 0.12f, 0.08f);
+
+        if (box != null)
+        {
+            _popupBoxAnimator = UIPanelAnimator.Ensure(box.gameObject);
+            _popupBoxAnimator.Configure(new Vector2(0f, -16f), 0.94f, 0.18f, 0.1f);
+        }
+
+        UIAnimationBootstrap.InstallButtonsIn(popupPanel);
     }
 
     private Transform FindAuthPopupPanel()
@@ -125,24 +142,44 @@ public class ProfileAuthUI : MonoBehaviour
 
     private void ShowPopup(string message, bool proceed)
     {
+        if (popupPanel == null || popupMessageText == null || _popupAnimator == null)
+            ResolvePopupRefs();
+
         _pendingProceed = proceed;
         if (popupMessageText != null)
             popupMessageText.text = message;
-        if (popupPanel != null)
+
+        if (_popupAnimator != null)
+            _popupAnimator.Show();
+        else if (popupPanel != null)
             popupPanel.SetActive(true);
+
+        if (_popupBoxAnimator != null)
+        {
+            _popupBoxAnimator.Show(false, 0.02f);
+
+            if (!proceed)
+                _popupBoxAnimator.Shake(0.18f, 8f, 0.16f);
+        }
     }
 
-    private void HidePopup()
+    private void HidePopup(bool instant = false)
     {
-        if (popupPanel != null)
+        if (_popupBoxAnimator != null)
+            _popupBoxAnimator.Hide(instant);
+
+        if (_popupAnimator != null)
+            _popupAnimator.Hide(instant);
+        else if (popupPanel != null)
             popupPanel.SetActive(false);
+
         _pendingProceed = false;
     }
 
     private void OnPopupOkClicked()
     {
         bool shouldProceed = _pendingProceed;
-        HidePopup();
+        HidePopup(false);
         if (shouldProceed)
             OnProceedRequested?.Invoke();
     }

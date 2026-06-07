@@ -33,10 +33,16 @@ public class LobbyMenuUI : MonoBehaviour
             bootstrap = FindFirstObjectByType<FusionBootstrap>();
 
         if (createRoomButton != null)
+        {
+            UIAnimationBootstrap.InstallButton(createRoomButton);
             createRoomButton.onClick.AddListener(OnCreateRoomClicked);
+        }
 
         if (refreshButton != null)
+        {
+            UIAnimationBootstrap.InstallButton(refreshButton);
             refreshButton.onClick.AddListener(OnRefreshClicked);
+        }
     }
 
     private void OnEnable()
@@ -95,6 +101,8 @@ public class LobbyMenuUI : MonoBehaviour
 
         SetStatus("Select the rooms for Play!");
 
+        int visibleIndex = 0;
+
         foreach (SessionInfo session in sessions)
         {
             if (session == null)
@@ -105,6 +113,8 @@ public class LobbyMenuUI : MonoBehaviour
 
             LobbyRoomItemUI item = Instantiate(roomItemPrefab, roomListContent);
             item.Bind(session, bootstrap.JoinRoom);
+            item.PlayIntro(visibleIndex);
+            visibleIndex++;
         }
     }
 

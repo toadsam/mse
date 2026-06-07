@@ -23,6 +23,7 @@ public class AudioSettingsUI : MonoBehaviour
     private Canvas canvas;
     private GraphicRaycaster raycaster;
     private CanvasGroup panelGroup;
+    private UIPanelAnimator panelAnimator;
     private Button openButton;
     private Slider bgmSlider;
     private Slider sfxSlider;
@@ -55,7 +56,7 @@ public class AudioSettingsUI : MonoBehaviour
         LoadVolumes();
         BindControls();
         ApplyAllVolumes();
-        SetVisible(false);
+        SetVisible(false, true);
     }
 
     private void OnEnable()
@@ -138,6 +139,12 @@ public class AudioSettingsUI : MonoBehaviour
         if (panelGroup == null)
             panelGroup = GetComponent<CanvasGroup>();
 
+        if (panelGroup != null)
+        {
+            panelAnimator = UIPanelAnimator.Ensure(panelGroup.gameObject);
+            panelAnimator.Configure(new Vector2(0f, -12f), 0.96f, 0.16f, 0.1f);
+        }
+
         if (canvas != null)
         {
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -163,7 +170,10 @@ public class AudioSettingsUI : MonoBehaviour
     private void BindControls()
     {
         if (openButton != null)
+        {
+            UIAnimationBootstrap.InstallButton(openButton);
             openButton.onClick.AddListener(Open);
+        }
 
         if (bgmSlider != null)
         {
@@ -178,7 +188,10 @@ public class AudioSettingsUI : MonoBehaviour
         }
 
         if (closeButton != null)
+        {
+            UIAnimationBootstrap.InstallButton(closeButton);
             closeButton.onClick.AddListener(Close);
+        }
     }
 
     private void EnsureManagedBgmSource()
@@ -341,7 +354,7 @@ public class AudioSettingsUI : MonoBehaviour
             sfxValueText.text = $"{Mathf.RoundToInt(sfxVolume * 100f)}%";
     }
 
-    private void SetVisible(bool visible)
+    private void SetVisible(bool visible, bool instant = false)
     {
         bool wasOpen = isOpen;
         isOpen = visible;
@@ -359,9 +372,19 @@ public class AudioSettingsUI : MonoBehaviour
 
         if (panelGroup != null)
         {
-            panelGroup.alpha = visible ? 1f : 0f;
-            panelGroup.interactable = visible;
-            panelGroup.blocksRaycasts = visible;
+            if (panelAnimator != null)
+            {
+                if (visible)
+                    panelAnimator.Show(instant);
+                else
+                    panelAnimator.Hide(instant);
+            }
+            else
+            {
+                panelGroup.alpha = visible ? 1f : 0f;
+                panelGroup.interactable = visible;
+                panelGroup.blocksRaycasts = visible;
+            }
         }
     }
 

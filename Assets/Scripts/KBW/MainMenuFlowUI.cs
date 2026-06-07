@@ -48,6 +48,8 @@ public class MainMenuFlowUI : MonoBehaviour
 
     private GameObject _popupPanel;
     private TMP_Text _popupMessageText;
+    private UIPanelAnimator _popupAnimator;
+    private UIPanelAnimator _popupBoxAnimator;
 
     private void Awake()
     {
@@ -126,6 +128,19 @@ public class MainMenuFlowUI : MonoBehaviour
         Transform msgT = popupT.Find("PopupBox/AuthPopupMessage");
         if (msgT != null)
             _popupMessageText = msgT.GetComponent<TMP_Text>();
+
+        _popupAnimator = UIPanelAnimator.Ensure(_popupPanel);
+        if (_popupAnimator != null)
+            _popupAnimator.Configure(Vector2.zero, 1f, 0.12f, 0.08f);
+
+        Transform box = popupT.Find("PopupBox");
+        if (box != null)
+        {
+            _popupBoxAnimator = UIPanelAnimator.Ensure(box.gameObject);
+            _popupBoxAnimator.Configure(new Vector2(0f, -16f), 0.94f, 0.18f, 0.1f);
+        }
+
+        UIAnimationBootstrap.InstallButtonsIn(_popupPanel);
     }
 
     private Transform FindAuthPopupPanel()
@@ -150,8 +165,16 @@ public class MainMenuFlowUI : MonoBehaviour
         if (_popupMessageText != null)
             _popupMessageText.text = message;
 
-        if (_popupPanel != null)
+        if (_popupAnimator != null)
+            _popupAnimator.Show();
+        else if (_popupPanel != null)
             _popupPanel.SetActive(true);
+
+        if (_popupBoxAnimator != null)
+        {
+            _popupBoxAnimator.Show(false, 0.02f);
+            _popupBoxAnimator.Shake(0.18f, 8f, 0.16f);
+        }
     }
 
     private void ShowTitle()
@@ -309,8 +332,33 @@ public class MainMenuFlowUI : MonoBehaviour
 
     private void SetPanel(GameObject panel, bool active)
     {
-        if (panel != null)
+        if (panel == null)
+            return;
+
+        if (!IsUIPanel(panel))
+        {
             panel.SetActive(active);
+            return;
+        }
+
+        UIPanelAnimator animator = UIPanelAnimator.Ensure(panel);
+        if (animator == null)
+        {
+            panel.SetActive(active);
+            return;
+        }
+
+        animator.Configure(new Vector2(0f, -10f), 0.97f, 0.14f, 0.1f);
+
+        if (active)
+            animator.Show();
+        else
+            animator.Hide();
+    }
+
+    private static bool IsUIPanel(GameObject panel)
+    {
+        return panel.GetComponent<RectTransform>() != null;
     }
 
     private void OnSettingClicked()
