@@ -34,10 +34,10 @@ public class LobbyRoomItemUI : MonoBehaviour
 
         if (joinButton != null)
         {
-            UIAnimationBootstrap.InstallButton(joinButton);
             joinButton.interactable = canJoin;
             joinButton.onClick.RemoveAllListeners();
             joinButton.onClick.AddListener(OnJoinButtonClicked);
+            UIAnimationBootstrap.InstallButton(joinButton);
         }
     }
 

@@ -271,9 +271,34 @@ public class AudioSettingsUI : MonoBehaviour
         ApplyBgmVolumeToScene();
     }
 
-    private static GameBgmClipId GetBgmClipIdForPhase(MatchPhase phase)
+    private GameBgmClipId GetBgmClipIdForPhase(MatchPhase phase)
     {
-        return phase == MatchPhase.Lobby ? GameBgmClipId.Lobby : GameBgmClipId.Game;
+        if (ShouldUseGameBgm(phase))
+            return GameBgmClipId.Game;
+
+        return GameBgmClipId.Lobby;
+    }
+
+    private bool ShouldUseGameBgm(MatchPhase phase)
+    {
+        if (phase != MatchPhase.Lobby)
+            return true;
+
+        MatchManager match = GameManager.Instance != null ? GameManager.Instance.Match : null;
+        if (match == null)
+            match = MatchManager.Instance;
+
+        if (match == null || !match.IsNetworkSpawned)
+            return false;
+
+        try
+        {
+            return match.RoundIndex > 0 || match.CurrentPhase != MatchPhase.Lobby;
+        }
+        catch (System.InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     private void TryPlayStartSound(MatchPhase previousPhase, MatchPhase currentPhase)
@@ -446,7 +471,8 @@ public enum GameAudioClipId
     Damage,
     Jump,
     Dash,
-    MatchStart
+    MatchStart,
+    ButtonClick
 }
 
 public enum GameBgmClipId
@@ -465,6 +491,7 @@ public static class GameAudio
     private static readonly Dictionary<GameBgmClipId, AudioClip[]> bgmCache = new();
     private static readonly List<GameAudioSfxSource> activeSfxSources = new();
     private static AudioSource shared2DSource;
+    private static AudioClip generatedButtonClickClip;
 
     public static AudioClip GetBgmClip(GameBgmClipId clipId = GameBgmClipId.Default)
     {
@@ -562,7 +589,8 @@ public static class GameAudio
                 break;
         }
 
-        AddUniqueClips(clips, Resources.LoadAll<AudioClip>(BgmResourcePath));
+        if (clips.Count == 0)
+            AddUniqueClips(clips, Resources.LoadAll<AudioClip>(BgmResourcePath));
 
         AudioClip[] result = clips.ToArray();
         SortByName(result);
@@ -574,7 +602,12 @@ public static class GameAudio
     {
         AudioClip[] clips = GetSfxClips(clipId);
         if (clips.Length == 0)
+        {
+            if (clipId == GameAudioClipId.ButtonClick)
+                return GetGeneratedButtonClickClip();
+
             return null;
+        }
 
         return clips[Random.Range(0, clips.Length)];
     }
@@ -650,6 +683,8 @@ public static class GameAudio
                 return "Dash";
             case GameAudioClipId.MatchStart:
                 return "MatchStart";
+            case GameAudioClipId.ButtonClick:
+                return "ButtonClick";
             default:
                 return clipId.ToString();
         }
@@ -673,9 +708,32 @@ public static class GameAudio
                 return new[] { "dash", "dodge" };
             case GameAudioClipId.MatchStart:
                 return new[] { "matchstart", "gamestart", "roundstart", "start" };
+            case GameAudioClipId.ButtonClick:
+                return new[] { "buttonclick", "button", "click", "ui", "select", "confirm" };
             default:
                 return new[] { clipId.ToString() };
         }
+    }
+
+    private static AudioClip GetGeneratedButtonClickClip()
+    {
+        if (generatedButtonClickClip != null)
+            return generatedButtonClickClip;
+
+        const int frequency = 44100;
+        int sampleCount = Mathf.CeilToInt(frequency * 0.045f);
+        float[] samples = new float[sampleCount];
+
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float time = i / (float)frequency;
+            float envelope = Mathf.Exp(-time * 85f);
+            samples[i] = Mathf.Sin(2f * Mathf.PI * 1800f * time) * 0.32f * envelope;
+        }
+
+        generatedButtonClickClip = AudioClip.Create("Generated_ButtonClick", sampleCount, 1, frequency, false);
+        generatedButtonClickClip.SetData(samples, 0);
+        return generatedButtonClickClip;
     }
 
     private static bool NameMatchesAnyAlias(string clipName, string[] aliases)

@@ -28,6 +28,7 @@ public class UIButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointerExi
             animator = target.gameObject.AddComponent<UIButtonAnimator>();
 
         animator.CaptureBaseScale();
+        animator.BindClickSound();
         return animator;
     }
 
@@ -36,6 +37,13 @@ public class UIButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointerExi
         button = GetComponent<Button>();
         rectTransform = transform as RectTransform;
         CaptureBaseScale();
+        BindClickSound();
+    }
+
+    private void OnDestroy()
+    {
+        if (button != null)
+            button.onClick.RemoveListener(PlayClickSound);
     }
 
     private void OnEnable()
@@ -159,5 +167,22 @@ public class UIButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointerExi
 
         baseScale = transform.localScale;
         hasBaseScale = true;
+    }
+
+    private void BindClickSound()
+    {
+        if (button == null)
+            button = GetComponent<Button>();
+
+        if (button == null)
+            return;
+
+        button.onClick.RemoveListener(PlayClickSound);
+        button.onClick.AddListener(PlayClickSound);
+    }
+
+    private void PlayClickSound()
+    {
+        GameAudio.PlaySfx2D(GameAudioClipId.ButtonClick, 0.75f);
     }
 }
