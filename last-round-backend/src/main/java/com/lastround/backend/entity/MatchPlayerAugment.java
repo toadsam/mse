@@ -34,9 +34,14 @@ public class MatchPlayerAugment {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "augment_id", nullable = false)
+    // Unity augment 세트와 DB augments 시드가 다르므로 augment_id(FK)는 비워둘 수 있다.
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "augment_id", nullable = true)
     private Augment augment;
+
+    // Unity 클라이언트가 보낸 augment 이름(displayName)을 그대로 보존한다.
+    @Column(name = "augment_name", length = 80)
+    private String augmentName;
 
     @Column(name = "selected_order")
     private Integer selectedOrder;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Fusion;
 using Fusion.Sockets;
 using UnityEngine;
@@ -9,12 +10,32 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 {
     [Header("Network")]
     [SerializeField] private NetworkPrefabRef playerPrefab;
-    [SerializeField] private string sessionName = "LastRound_TestRoom";
+
+    [Header("Lobby")]
+    [SerializeField] private string customLobbyName = "LastRound_Lobby";
+    [SerializeField] private int maxPlayersPerRoom = 2;
+    [SerializeField] private string defaultRoomPrefix = "LastRound";
 
     private NetworkRunner runner;
-    private readonly Dictionary<PlayerRef, NetworkObject> spawnedPlayers = new();
+    private NetworkSceneManagerDefault sceneManager;
+    public event Action GameSessionStarted;
 
-    // ÅÇ ÀÔ·Â ´©¶ô ¹æÁö¿ë
+    private readonly Dictionary<PlayerRef, NetworkObject> spawnedPlayers = new();
+    private readonly List<SessionInfo> cachedSessions = new();
+
+    public IReadOnlyList<SessionInfo> CachedSessions => cachedSessions;
+
+    public event Action<IReadOnlyList<SessionInfo>> SessionListUpdated;
+    public event Action<string> StatusChanged;
+
+    // ë§¤ì¹˜ ì¢…ë£Œ í›„ ë£¸ì„ ë– ë‚˜ ë¡œë¹„ë¡œ ë³µê·€í–ˆìŒì„ ì•Œë¦°ë‹¤(UIê°€ ë©”ë‰´/ë¡œë¹„ íŒ¨ë„ì„ ë‹¤ì‹œ í‘œì‹œ).
+    public event Action ReturnedToLobby;
+
+    private bool isBusy;
+    private bool isInLobby;
+
+
+    // ï¿½ï¿½ ï¿½Ô·ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     private bool dashPressed;
     private bool abilityPressed;
     private bool reloadPressed;
@@ -23,37 +44,6 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     private bool aug3Pressed;
     private bool jumpPressed;
 
-    private async void StartGame(GameMode mode)
-    {
-        if (runner != null)
-            return;
-
-        runner = gameObject.AddComponent<NetworkRunner>();
-        runner.ProvideInput = true;
-
-        var scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex);
-
-        await runner.StartGame(new StartGameArgs
-        {
-            GameMode = mode,
-            SessionName = sessionName,
-            Scene = scene,
-            SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>()
-        });
-    }
-
-    private void OnGUI()
-    {
-        if (runner != null)
-            return;
-
-        if (GUI.Button(new Rect(10, 10, 160, 40), "Host"))
-            StartGame(GameMode.Host);
-
-        if (GUI.Button(new Rect(10, 60, 160, 40), "Join"))
-            StartGame(GameMode.Client);
-    }
-
     private void Start()
     {
         GameManager.Instance?.RegisterBootstrap(this);
@@ -61,106 +51,257 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
     private void Update()
     {
-        // ÇÑ ¹ø ´­¸²¸¸ ÇÊ¿äÇÑ ÀÔ·ÂÀº Update¿¡¼­ ´©Àû
+        // UI ï¿½ï¿½ï¿½Â¿ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ã·ï¿½ï¿½ï¿½ ï¿½Ô·ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
+        if (GameManager.Instance != null && GameManager.Instance.BlocksGameplayInput)
+            return;
+
+        dashPressed |= Input.GetKeyDown(KeyCode.LeftShift);
         jumpPressed |= Input.GetKeyDown(KeyCode.Space);
-        dashPressed |= Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift);
         abilityPressed |= Input.GetKeyDown(KeyCode.Q);
         reloadPressed |= Input.GetKeyDown(KeyCode.R);
 
-        // ´É·Â ¼±ÅÃÀº ÀÏ´Ü ¸¶¿ì½º ÀÔ·ÂÀ¸·Î¸¸ Ã³¸®, ³ªÁß¿¡ Å°º¸µå ÀÔ·Âµµ Ãß°¡ÇÒ ¼ö ÀÖÀ½
         aug1Pressed |= Input.GetKeyDown(KeyCode.Alpha1);
         aug2Pressed |= Input.GetKeyDown(KeyCode.Alpha2);
         aug3Pressed |= Input.GetKeyDown(KeyCode.Alpha3);
     }
 
-    private void FillAimRay(ref GameplayInput data)
+    private void CreateRunnerIfNeeded()
     {
-        Camera cam = Camera.main;
+        if (runner != null)
+            return;
 
-        if (cam != null)
-        {
-            Ray aimRay = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
-            data.AimOrigin = aimRay.origin;
-            data.AimDirection = aimRay.direction.normalized;
-        }
-        else
-        {
-            data.AimOrigin = Vector3.zero;
-            data.AimDirection = Vector3.zero;
-        }
+        runner = gameObject.AddComponent<NetworkRunner>();
+        runner.ProvideInput = true;
+        runner.AddCallbacks(this);
+
+        if (sceneManager == null)
+            sceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>();
     }
 
-    public void OnInput(NetworkRunner runner, NetworkInput input)
+    public async void JoinLobby()
     {
-        GameplayInput data = new GameplayInput();
+        if (isBusy)
+            return;
 
-        bool blockGameplay = GameManager.Instance != null && GameManager.Instance.BlocksGameplayInput;
+        CreateRunnerIfNeeded();
 
-        if (blockGameplay)
+        if (isInLobby)
         {
-            data.Move = Vector2.zero;
-            data.Look = Vector2.zero;
-
-            FillAimRay(ref data);
-
-            data.Buttons.Set(EInputButton.Fire, false);
-            data.Buttons.Set(EInputButton.AltFire, false);
-            data.Buttons.Set(EInputButton.Dash, false);
-            data.Buttons.Set(EInputButton.Jump, false);
-            data.Buttons.Set(EInputButton.Ability, false);
-            data.Buttons.Set(EInputButton.Reload, false);
-
-            input.Set(data);
-
-            jumpPressed = false;
-            dashPressed = false;
-            abilityPressed = false;
-            reloadPressed = false;
-            aug1Pressed = false;
-            aug2Pressed = false;
-            aug3Pressed = false;
+            SessionListUpdated?.Invoke(cachedSessions);
             return;
         }
 
+        isBusy = true;
+        StatusChanged?.Invoke("Connecting to lobby...");
 
-        Vector2 move = Vector2.zero;
-        if (Input.GetKey(KeyCode.W)) move.y += 1f;
-        if (Input.GetKey(KeyCode.S)) move.y -= 1f;
-        if (Input.GetKey(KeyCode.A)) move.x -= 1f;
-        if (Input.GetKey(KeyCode.D)) move.x += 1f;
-        data.Move = move;
+        var result = await runner.JoinSessionLobby(SessionLobby.Custom, customLobbyName);
 
-        // ¸¶¿ì½º ÀÌµ¿µµ ³×Æ®¿öÅ© ÀÔ·ÂÀ¸·Î Àü´Ş
-        data.Look = new Vector2(
-            Input.GetAxisRaw("Mouse X"),
-            Input.GetAxisRaw("Mouse Y")
-        );
+        isBusy = false;
 
-        FillAimRay(ref data);
+        if (result.Ok)
+        {
+            isInLobby = true;
+            StatusChanged?.Invoke("Lobby connected. Select a room or create one.");
+        }
+        else
+        {
+            StatusChanged?.Invoke($"Failed to join lobby: {result.ShutdownReason}");
+            Debug.LogError($"[FusionBootstrap] JoinLobby failed: {result.ShutdownReason}");
+        }
+    }
 
-        // À¯ÁöÇü ÀÔ·Â
-        data.Buttons.Set(EInputButton.Fire, Input.GetMouseButton(0));
-        data.Buttons.Set(EInputButton.AltFire, Input.GetMouseButton(1));
+    public void CreateRoom(string requestedRoomName)
+    {
+        if (isBusy)
+            return;
 
-        // ÅÇÇü ÀÔ·Â
-        data.Buttons.Set(EInputButton.Dash, dashPressed);
-        data.Buttons.Set(EInputButton.Jump, jumpPressed);
-        data.Buttons.Set(EInputButton.Ability, abilityPressed);
-        data.Buttons.Set(EInputButton.Reload, reloadPressed);
-        data.Buttons.Set(EInputButton.ConfirmAugment1, aug1Pressed);
-        data.Buttons.Set(EInputButton.ConfirmAugment2, aug2Pressed);
-        data.Buttons.Set(EInputButton.ConfirmAugment3, aug3Pressed);
+        string roomName = BuildRoomName(requestedRoomName);
 
-        input.Set(data);
+        if (IsDuplicateRoomName(roomName))
+        {
+            StatusChanged?.Invoke($"Room already exists: {roomName}");
+            return;
+        }
 
-        // ÀÌ¹ø ÇÁ·¹ÀÓ ÀÔ·Â Àü´Ş ÈÄ ¸®¼Â
-        jumpPressed = false;
-        dashPressed = false;
-        abilityPressed = false;
-        reloadPressed = false;
-        aug1Pressed = false;
-        aug2Pressed = false;
-        aug3Pressed = false;
+        StartSession(GameMode.Host, roomName);
+    }
+
+    public void JoinRoom(string roomName)
+    {
+        if (isBusy)
+            return;
+
+        if (string.IsNullOrWhiteSpace(roomName))
+        {
+            StatusChanged?.Invoke("Room name is empty.");
+            return;
+        }
+
+        StartSession(GameMode.Client, roomName);
+    }
+
+    public void JoinRoom(SessionInfo session)
+    {
+        if (session == null)
+            return;
+
+        if (!session.IsOpen || session.PlayerCount >= session.MaxPlayers)
+        {
+            StatusChanged?.Invoke("This room is full or closed.");
+            return;
+        }
+
+        JoinRoom(session.Name);
+    }
+
+    private async void StartSession(GameMode mode, string roomName)
+    {
+        CreateRunnerIfNeeded();
+
+        isBusy = true;
+        StatusChanged?.Invoke(mode == GameMode.Host
+            ? $"Creating room: {roomName}"
+            : $"Joining room: {roomName}");
+
+        var scene = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex);
+
+        var args = new StartGameArgs
+        {
+            GameMode = mode,
+            SessionName = roomName,
+            CustomLobbyName = customLobbyName,
+            PlayerCount = maxPlayersPerRoom,
+            IsOpen = true,
+            IsVisible = true,
+            Scene = scene,
+            SceneManager = sceneManager
+        };
+
+        // Clientï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
+        if (mode == GameMode.Client)
+            args.EnableClientSessionCreation = false;
+
+        var result = await runner.StartGame(args);
+
+        isBusy = false;
+
+        if (result.Ok)
+        {
+            isInLobby = false;
+            StatusChanged?.Invoke($"Connected: {roomName}");
+
+            GameSessionStarted?.Invoke();
+        }
+        else
+        {
+            StatusChanged?.Invoke($"Connection failed: {result.ShutdownReason}");
+            Debug.LogError($"[FusionBootstrap] StartSession failed: {result.ShutdownReason}");
+        }
+    }
+
+    // ë§¤ì¹˜ ì¢…ë£Œ í›„ í˜¸ì¶œ. í˜„ì¬ Photon ë£¸ì„ ë– ë‚˜ê³  ë¡œë¹„ ìƒíƒœë¡œ ë˜ëŒë¦°ë‹¤.
+    public async void ReturnToLobby()
+    {
+        if (isBusy)
+            return;
+
+        isBusy = true;
+        StatusChanged?.Invoke("Returning to lobby...");
+
+        if (runner != null)
+        {
+            try
+            {
+                // Only call Shutdown() when the runner is still active.
+                // If Photon already sent a Code 104 disconnect, runner.IsRunning is false
+                // and calling Shutdown() on an internally-shutting-down runner will hang
+                // indefinitely, blocking ReturnedToLobby from ever firing.
+                if (runner.IsRunning)
+                {
+                    // destroyGameObject:false is critical. The NetworkRunner is added to
+                    // THIS GameObject (the FusionBootstrap), and Shutdown()'s default
+                    // destroyGameObject:true would destroy the whole FusionBootstrap object.
+                    // That kills the lobby (LobbyMenuUI/MatchResultUI all reference this
+                    // bootstrap), so room list / create / join silently stop working and
+                    // the game appears frozen. Keep the GameObject; only tear down the runner.
+                    var shutdownTask = runner.Shutdown(destroyGameObject: false);
+                    // 5-second timeout: guards against hanging when the Photon server
+                    // has already initiated disconnect (e.g., Code 104) but IsRunning
+                    // hasn't transitioned to false yet.
+                    await Task.WhenAny(shutdownTask, Task.Delay(5000));
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[FusionBootstrap] Runner shutdown error: {e.Message}");
+            }
+            finally
+            {
+                // DestroyImmediate (not Destroy) so the old components are gone THIS frame.
+                // ReturnedToLobby?.Invoke() below re-enables the lobby panel, whose
+                // LobbyMenuUI.OnEnable calls JoinLobby() -> CreateRunnerIfNeeded() within
+                // this same call stack. A deferred Destroy would leave the shut-down runner
+                // on the GameObject while a new NetworkRunner is added, so two runners would
+                // briefly coexist on one GameObject and Fusion would misbehave.
+                if (runner != null)
+                {
+                    runner.RemoveCallbacks(this);
+                    DestroyImmediate(runner);
+                    runner = null;
+                }
+                if (sceneManager != null)
+                {
+                    DestroyImmediate(sceneManager);
+                    sceneManager = null;
+                }
+            }
+        }
+
+        spawnedPlayers.Clear();
+        cachedSessions.Clear();
+        isInLobby = false;
+        isBusy = false;
+
+        // runner ì¢…ë£Œê°€ ëë‚œ ë’¤ì— ì•Œë¦°ë‹¤. êµ¬ë…ì(UI)ê°€ ë¡œë¹„ íŒ¨ë„ì„ ë‹¤ì‹œ í™œì„±í™”í•˜ë©´
+        // LobbyMenuUI.OnEnableì´ ìƒˆ runnerë¡œ JoinLobbyë¥¼ í˜¸ì¶œí•œë‹¤.
+        ReturnedToLobby?.Invoke();
+    }
+
+    private string BuildRoomName(string requestedRoomName)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedRoomName))
+            return requestedRoomName.Trim();
+
+        int random = UnityEngine.Random.Range(1000, 9999);
+        return $"{defaultRoomPrefix}_{random}";
+    }
+
+    private bool IsDuplicateRoomName(string roomName)
+    {
+        foreach (SessionInfo session in cachedSessions)
+        {
+            if (session != null && session.Name == roomName)
+                return true;
+        }
+
+        return false;
+    }
+
+    public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
+    {
+        cachedSessions.Clear();
+
+        foreach (SessionInfo session in sessionList)
+        {
+            if (session == null)
+                continue;
+
+            // Last Round ï¿½Îºñ¿¡¼ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½æ¸¸ Ä³ï¿½ï¿½
+            cachedSessions.Add(session);
+        }
+
+        SessionListUpdated?.Invoke(cachedSessions);
+        StatusChanged?.Invoke($"Rooms found: {cachedSessions.Count}");
     }
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
@@ -177,16 +318,20 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             playerPrefab,
             spawnPos,
             Quaternion.identity,
-            player
+            player,
+            (runner, obj) =>
+            {
+                PlayerNetwork pn = obj.GetComponent<PlayerNetwork>();
+                if (pn != null)
+                    pn.ServerInitialize((byte)slot);
+            }
         );
 
         runner.SetPlayerObject(player, playerObj);
 
-        PlayerNetwork pn = playerObj.GetComponent<PlayerNetwork>();
-        if (pn != null)
-            pn.ServerInitialize((byte)slot);
-
         spawnedPlayers.Add(player, playerObj);
+
+        UpdateRoomAvailability();
     }
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
@@ -196,7 +341,110 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
             runner.Despawn(obj);
             spawnedPlayers.Remove(player);
         }
+
         runner.SetPlayerObject(player, null);
+
+        UpdateRoomAvailability();
+    }
+
+    public void OnInput(NetworkRunner runner, NetworkInput input)
+    {
+        GameplayInput data = new GameplayInput();
+
+        bool blockGameplayInput =
+            GameManager.Instance != null &&
+            GameManager.Instance.BlocksGameplayInput;
+
+        bool isPlaying =
+            GameManager.Instance != null &&
+            GameManager.Instance.CurrentPhase == MatchPhase.Playing;
+
+        // Playing ï¿½ï¿½ï¿½Â°ï¿½ ï¿½Æ´Ï°Å³ï¿½ UI ï¿½ï¿½ï¿½Â¸ï¿½ ï¿½ï¿½ ï¿½Ô·Â¸ï¿½ ï¿½ï¿½ï¿½ï¿½
+        if (!isPlaying || blockGameplayInput)
+        {
+            input.Set(data);
+            ClearBufferedInput();
+            return;
+        }
+
+        Vector2 move = Vector2.zero;
+
+        if (Input.GetKey(KeyCode.W)) move.y += 1f;
+        if (Input.GetKey(KeyCode.S)) move.y -= 1f;
+        if (Input.GetKey(KeyCode.D)) move.x += 1f;
+        if (Input.GetKey(KeyCode.A)) move.x -= 1f;
+
+        data.Move = Vector2.ClampMagnitude(move, 1f);
+
+        data.Look = new Vector2(
+            Input.GetAxisRaw("Mouse X"),
+            Input.GetAxisRaw("Mouse Y")
+        );
+
+        Camera cam = Camera.main;
+        if (cam != null)
+        {
+            data.AimOrigin = cam.transform.position;
+            data.AimDirection = cam.transform.forward;
+        }
+        else
+        {
+            data.AimOrigin = Vector3.zero;
+            data.AimDirection = Vector3.forward;
+        }
+
+        NetworkButtons buttons = default;
+
+        buttons.Set(EInputButton.Fire, Input.GetMouseButton(0));
+        buttons.Set(EInputButton.AltFire, Input.GetMouseButton(1));
+
+        buttons.Set(EInputButton.Dash, dashPressed);
+        buttons.Set(EInputButton.Jump, jumpPressed);
+        buttons.Set(EInputButton.Ability, abilityPressed);
+        buttons.Set(EInputButton.Reload, reloadPressed);
+
+        buttons.Set(EInputButton.ConfirmAugment1, aug1Pressed);
+        buttons.Set(EInputButton.ConfirmAugment2, aug2Pressed);
+        buttons.Set(EInputButton.ConfirmAugment3, aug3Pressed);
+
+        data.Buttons = buttons;
+
+        input.Set(data);
+
+        ClearBufferedInput();
+    }
+
+    private void ClearBufferedInput()
+    {
+        dashPressed = false;
+        jumpPressed = false;
+        abilityPressed = false;
+        reloadPressed = false;
+
+        aug1Pressed = false;
+        aug2Pressed = false;
+        aug3Pressed = false;
+    }
+
+    private void UpdateRoomAvailability()
+    {
+        if (runner == null)
+            return;
+
+        if (!runner.IsServer)
+            return;
+
+        if (!runner.SessionInfo.IsValid)
+            return;
+
+        bool waitingForOpponent =
+            MatchManager.Instance == null ||
+            MatchManager.Instance.CurrentPhase == MatchPhase.Lobby;
+
+        bool canJoin = waitingForOpponent && spawnedPlayers.Count < maxPlayersPerRoom;
+
+        runner.SessionInfo.IsOpen = canJoin;
+        runner.SessionInfo.IsVisible = canJoin;
     }
 
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
@@ -206,7 +454,6 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
     public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
     public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
-    public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList) { }
     public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }
     public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) { }
     public void OnSceneLoadDone(NetworkRunner runner) { }

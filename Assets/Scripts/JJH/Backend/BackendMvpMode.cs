@@ -5,7 +5,7 @@ public class BackendMvpMode : MonoBehaviour
 {
     private const int WindowId = 8081;
 
-    [SerializeField] private bool visible = true;
+    [SerializeField] private bool visible = false;
 
     private Rect windowRect = new Rect(20f, 20f, 520f, 700f);
     private Vector2 scroll;
@@ -16,7 +16,7 @@ public class BackendMvpMode : MonoBehaviour
     private GUIStyle badStyle;
     private int lastToggleFrame = -1;
 
-    private string baseUrl = "http://localhost:8080";
+    private string baseUrl = "http://15.164.171.132:8080";
     private string email = "player1@test.com";
     private string password = "password123";
     private string nickname = "player1";

@@ -11,6 +11,7 @@ public enum ErrorCode {
     EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "Email already exists"),
     NICKNAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "Nickname already exists"),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Invalid credentials"),
+    WRONG_PASSWORD(HttpStatus.UNAUTHORIZED, "Wrong password"),
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "Invalid token"),
     TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "Token expired"),
     FORBIDDEN(HttpStatus.FORBIDDEN, "Forbidden");

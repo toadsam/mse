@@ -151,8 +151,12 @@ public class MatchService {
         }
 
         private void validateAugmentIds(MatchPlayerResultRequest player) {
+        // augmentId는 선택값이다(Unity augment가 DB augments에 없을 수 있음).
+        // 값이 채워진 id(>0)만 존재 여부를 검증하고, 없으면 이름만으로 저장한다.
+        // (Unity JsonUtility는 id를 항상 0으로 직렬화하므로 0/음수는 "id 없음"으로 간주.)
         Set<Long> augmentIds = player.getAugments().stream()
             .map(augment -> augment.getAugmentId())
+            .filter(id -> id != null && id > 0)
             .collect(Collectors.toSet());
 
         if (augmentIds.isEmpty()) {
@@ -177,6 +181,7 @@ public class MatchService {
         Set<Long> augmentIds = request.getPlayers().stream()
             .flatMap(player -> player.getAugments().stream())
             .map(augment -> augment.getAugmentId())
+            .filter(id -> id != null && id > 0)
             .collect(Collectors.toSet());
 
         Map<Long, Augment> augmentsById = augmentRepository.findAllById(augmentIds).stream()
@@ -199,7 +204,8 @@ public class MatchService {
                 .map(augment -> MatchPlayerAugment.builder()
                     .match(savedMatch)
                     .user(usersById.get(player.getUserId()))
-                    .augment(augmentsById.get(augment.getAugmentId()))
+                    .augment(augment.getAugmentId() == null || augment.getAugmentId() <= 0 ? null : augmentsById.get(augment.getAugmentId()))
+                    .augmentName(augment.getAugmentName())
                     .selectedRound(augment.getSelectedRound())
                     .selectedOrder(augment.getSelectedOrder())
                     .build()))
@@ -279,10 +285,14 @@ public class MatchService {
         }
 
         private MatchPlayerAugmentResponse toAugmentResponse(MatchPlayerAugment augment) {
+        // augment FK는 null일 수 있다(Unity augment가 DB에 없는 경우). 이름 컬럼을 우선 사용한다.
+        Augment linked = augment.getAugment();
+        String name = augment.getAugmentName() != null ? augment.getAugmentName()
+                : (linked != null ? linked.getName() : null);
         return MatchPlayerAugmentResponse.builder()
-            .augmentId(augment.getAugment().getId())
-            .augmentName(augment.getAugment().getName())
-            .effectType(augment.getAugment().getEffectType())
+            .augmentId(linked != null ? linked.getId() : null)
+            .augmentName(name)
+            .effectType(linked != null ? linked.getEffectType() : null)
             .selectedOrder(augment.getSelectedOrder())
             .selectedRound(augment.getSelectedRound())
             .build();

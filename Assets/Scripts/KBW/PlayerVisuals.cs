@@ -2,25 +2,64 @@ using UnityEngine;
 
 public class PlayerVisuals : MonoBehaviour
 {
-    [SerializeField] private GameObject characterA;
-    [SerializeField] private GameObject characterB;
+    [Header("Characters")]
+    [SerializeField] private GameObject[] characters;
 
-    [SerializeField] private Animator animatorA;
-    [SerializeField] private Animator animatorB;
+    [Header("Animators")]
+    [SerializeField] private Animator[] animators;
 
-    private byte _lastApplied = 255;
+    [Header("Weapon Muzzles")]
+    [SerializeField] private Transform[] muzzles;
+
+    private byte lastApplied = 255;
+
+    public int CharacterCount => characters != null ? characters.Length : 0;
+
+    public bool IsValidCharacterId(byte characterId)
+    {
+        return characters != null &&
+               characterId < characters.Length &&
+               characters[characterId] != null;
+    }
 
     public void Refresh(byte characterId)
     {
-        if (_lastApplied == characterId) return;
-        _lastApplied = characterId;
+        if (lastApplied == characterId)
+            return;
 
-        if (characterA) characterA.SetActive(characterId == 0);
-        if (characterB) characterB.SetActive(characterId == 1);
+        lastApplied = characterId;
+
+        if (characters == null)
+            return;
+
+        Debug.Log($"[PlayerVisuals] Refresh CharacterId={characterId}, Count={CharacterCount}");
+
+        for (int i = 0; i < characters.Length; i++)
+        {
+            if (characters[i] != null)
+                characters[i].SetActive(i == characterId);
+        }
     }
 
     public Animator GetActiveAnimator(byte characterId)
     {
-        return characterId == 0 ? animatorA : animatorB;
+        if (animators == null)
+            return null;
+
+        if (characterId >= animators.Length)
+            return null;
+
+        return animators[characterId];
+    }
+
+    public Transform GetActiveMuzzle(byte characterId)
+    {
+        if (muzzles == null)
+            return null;
+
+        if (characterId >= muzzles.Length)
+            return null;
+
+        return muzzles[characterId];
     }
 }

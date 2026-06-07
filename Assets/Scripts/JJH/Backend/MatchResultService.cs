@@ -45,19 +45,26 @@ public class MatchResultService : MonoBehaviour
 
     public void SaveResult(MatchResultRequest request)
     {
+        SaveResult(request, null, null);
+    }
+
+    // 저장 성공/실패 콜백을 함께 받는 오버로드. (결과 화면 흐름에서 사용)
+    // 이벤트(SaveSucceeded/SaveFailed)도 그대로 발생한다.
+    public void SaveResult(MatchResultRequest request, Action<MatchResponse> onSuccess, Action<string> onError)
+    {
         if (BackendApiClient.Instance == null)
         {
-            FailSave("BackendApiClient가 아직 준비되지 않았어.");
+            FailSave("BackendApiClient가 아직 준비되지 않았어.", onError);
             return;
         }
 
         if (!BackendSession.IsLoggedIn)
         {
-            FailSave("매치 결과 저장은 로그인 후에 가능해.");
+            FailSave("매치 결과 저장은 로그인 후에 가능해.", onError);
             return;
         }
 
-        if (!ValidateResult(request))
+        if (!ValidateResult(request, onError))
             return;
 
         EnsurePlayerPayload(request);
@@ -71,7 +78,8 @@ public class MatchResultService : MonoBehaviour
             IsSaving = false;
             LastError = string.Empty;
             SaveSucceeded?.Invoke(match);
-        }, FailSave);
+            onSuccess?.Invoke(match);
+        }, message => FailSave(message, onError));
     }
 
     public void LoadMyHistory(int page = 0, int size = 20)
@@ -95,35 +103,43 @@ public class MatchResultService : MonoBehaviour
         }, FailHistory);
     }
 
-    private bool ValidateResult(MatchResultRequest request)
+    private bool ValidateResult(MatchResultRequest request, Action<string> onError = null)
     {
         if (request == null)
         {
-            FailSave("저장할 매치 결과가 없어.");
+            FailSave("저장할 매치 결과가 없어.", onError);
             return false;
         }
 
         if (request.player1Id <= 0 || request.player2Id <= 0 || request.winnerId <= 0)
         {
-            FailSave("player1Id, player2Id, winnerId는 0보다 커야 해.");
+            FailSave("player1Id, player2Id, winnerId는 0보다 커야 해.", onError);
             return false;
         }
 
         if (request.player1Id == request.player2Id)
         {
-            FailSave("1P와 2P는 서로 다른 유저여야 해.");
+            FailSave("1P와 2P는 서로 다른 유저여야 해.", onError);
             return false;
         }
 
         if (request.winnerId != request.player1Id && request.winnerId != request.player2Id)
         {
-            FailSave("승자 ID는 1P 또는 2P 중 하나여야 해.");
+            FailSave("승자 ID는 1P 또는 2P 중 하나여야 해.", onError);
             return false;
         }
 
         request.player1Score = Mathf.Clamp(request.player1Score, 0, 10);
         request.player2Score = Mathf.Clamp(request.player2Score, 0, 10);
         return true;
+    }
+
+    private void FailSave(string message, Action<string> onError)
+    {
+        IsSaving = false;
+        LastError = message;
+        SaveFailed?.Invoke(message);
+        onError?.Invoke(message);
     }
 
     public static MatchResultRequest CreateBasicRequest(long player1Id, long player2Id, long winnerId, int player1Score, int player2Score)

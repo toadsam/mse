@@ -50,6 +50,25 @@ public class PlayerNetwork : NetworkBehaviour
     [SerializeField] private Animator animator;
     [SerializeField] private bool useAnimator = true;
 
+    [Header("Projectile Rifle")]
+    [SerializeField] private NetworkPrefabRef rifleProjectilePrefab;
+    [SerializeField] private float projectileSpeed = 35f;
+    [SerializeField] private float projectileSpawnForwardOffset = 0.4f;
+
+    [Header("Augment Runtime Stats")]
+    [Networked] public int ProjectileExtraProjectiles { get; private set; }
+    [Networked] public float ProjectileSpreadAngle { get; private set; }
+    [Networked] public float ProjectileSizeMultiplier { get; private set; }
+    [Networked] public float ProjectileSpeedMultiplier { get; private set; }
+    [Networked] public float ProjectileDamageMultiplier { get; private set; }
+    [Networked] public float FireIntervalMultiplier { get; private set; }
+
+    [Networked] public NetworkString<_32> PlayerName { get; private set; }
+    [Networked] public NetworkBool HasAppliedProfile { get; private set; }
+
+    // 백엔드(MySQL) 매치 저장을 위해, 각 클라이언트가 자기 로그인 userId를 호스트(StateAuthority)로 동기화한다.
+    [Networked] public long BackendUserId { get; private set; }
+
     private SimpleKCC kcc;
     private Rigidbody rb;
     private PlayerView playerView;
@@ -81,12 +100,24 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public int SelectedAugmentId { get; private set; }
     [Networked] public NetworkBool HasSelectedAugmentNet { get; private set; }
 
+    // 캐릭터 표시 이름(프로필 RPC로 호스트에 동기화). 결과 화면/백엔드 저장에 사용.
+    [Networked] public NetworkString<_32> CharacterDisplayName { get; private set; }
+
+    // 매치 동안 선택한 augment를 누적 보존(SelectedAugmentId는 매 라운드 초기화되어 직전 1개만 남기 때문).
+    // 결과 화면 표시 및 백엔드(MySQL) 저장에 사용한다. (best-of-3 기준 최대 라운드 수 여유 있게 8)
+    public const int MaxAugmentHistory = 8;
+    [Networked, Capacity(MaxAugmentHistory)] public NetworkArray<int> AugmentHistoryIds { get; }
+    [Networked, Capacity(MaxAugmentHistory)] public NetworkArray<int> AugmentHistoryRounds { get; }
+    [Networked] public int AugmentHistoryCount { get; private set; }
+
     [Networked] public float DashDistanceBonus { get; private set; }
     [Networked] public float DashCooldownMultiplier { get; private set; }
 
     [Networked] private NetworkButtons PreviousButtons { get; set; }
 
     [Networked] public int HitConfirmCount { get; private set; }
+
+    [Networked] public NetworkBool CanSelectAugmentNet { get; private set; }
 
     private int lastAppliedJumpAnimCount = -1;
 
@@ -107,12 +138,9 @@ public class PlayerNetwork : NetworkBehaviour
         if (animator == null)
             animator = GetComponentInChildren<Animator>(true);
 
-        if (fireOrigin == null && playerView != null)
+        if (fireOrigin == null)
         {
-            if (playerView.FirstPersonAnchor != null)
-                fireOrigin = playerView.FirstPersonAnchor;
-            else
-                fireOrigin = transform;
+            Debug.LogWarning($"[PlayerNetwork] fireOrigin is not assigned on {name}. Projectile will use fallback muzzle position.");
         }
     }
 
@@ -124,7 +152,16 @@ public class PlayerNetwork : NetworkBehaviour
         AirState = 0;
         VerticalSpeedForAnim = 0f;
         SlotIndex = slotIndex;
-        CharacterId = slotIndex;
+
+        if (!HasAppliedProfile)
+        {
+            CharacterId = 0;
+            PlayerName = $"Player {slotIndex + 1}";
+            CharacterDisplayName = $"Character {slotIndex + 1}";
+        }
+        HasAppliedProfile = false;
+
+        ResetAugmentHistory();
 
         MoveSpeedBonus = 0f;
 
@@ -148,9 +185,14 @@ public class PlayerNetwork : NetworkBehaviour
         if (kcc != null)
             kcc.SetLookRotation(LookPitch, LookYaw);
 
-        FireCooldown = default;
-        FireAnimCount = 0;
         HitConfirmCount = 0;
+
+        ProjectileExtraProjectiles = 0;
+        ProjectileSpreadAngle = 0f;
+        ProjectileSizeMultiplier = 1f;
+        ProjectileSpeedMultiplier = 1f;
+        ProjectileDamageMultiplier = 1f;
+        FireIntervalMultiplier = 1f;
     }
 
     public override void Spawned()
@@ -160,6 +202,7 @@ public class PlayerNetwork : NetworkBehaviour
 
         if (rb == null)
             rb = GetComponent<Rigidbody>();
+
         if (playerHealth == null)
             playerHealth = GetComponent<PlayerHealth>();
 
@@ -181,6 +224,18 @@ public class PlayerNetwork : NetworkBehaviour
             return;
 
         GameManager.Instance?.RegisterLocalPlayer(this, playerView);
+
+        Debug.Log($"[PlayerNetwork] Send profile RPC. Name={LocalPlayerProfile.PlayerName}, CharacterId={LocalPlayerProfile.CharacterId}");
+
+        RPC_RequestApplyProfile(
+            LocalPlayerProfile.CharacterId,
+            LocalPlayerProfile.PlayerName,
+            LocalPlayerProfile.CharacterName
+        );
+
+        // 로그인 상태면 내 backend userId를 호스트로 전달(게스트/비로그인은 0 → 호스트가 저장을 스킵).
+        long localBackendUserId = BackendSession.IsLoggedIn ? BackendSession.UserId : 0;
+        RPC_SetBackendIdentity(localBackendUserId);
     }
 
     public override void Despawned(NetworkRunner runner, bool hasState)
@@ -352,7 +407,6 @@ public class PlayerNetwork : NetworkBehaviour
         animator.SetFloat("MoveAmount", MoveAmount);
         animator.SetInteger("MoveState", MoveState);
         animator.SetInteger("AirState", AirState);
-        animator.SetFloat("VerticalSpeed", VerticalSpeedForAnim);
         animator.SetBool("IsGrounded", IsGroundedNet);
         animator.SetBool("IsDead", IsDead);
 
@@ -414,15 +468,26 @@ public class PlayerNetwork : NetworkBehaviour
 
         return 0;
     }
+
+    [SerializeField] private Vector3 fallbackMuzzleLocalOffset = new Vector3(0.25f, 1.35f, 0.65f);
+
     private Vector3 GetFireOriginPosition()
     {
+        // 1����: ���� Ȱ�� ĳ������ Muzzle
+        if (playerVisuals != null)
+        {
+            Transform activeMuzzle = playerVisuals.GetActiveMuzzle(CharacterId);
+            if (activeMuzzle != null)
+                return activeMuzzle.position;
+        }
+
+        // 2����: ���� fireOrigin
         if (fireOrigin != null)
             return fireOrigin.position;
 
-        if (playerView != null && playerView.FirstPersonAnchor != null)
-            return playerView.FirstPersonAnchor.position;
-
-        return transform.position + Vector3.up * 1.6f;
+        // 3����: ī�޶� ��Ŀ�� �ƴ϶� �÷��̾� ��Ʈ ���� fallback
+        Quaternion yawRotation = Quaternion.Euler(0f, LookYaw, 0f);
+        return transform.position + yawRotation * fallbackMuzzleLocalOffset;
     }
     private Vector3 GetAimDirection()
     {
@@ -447,66 +512,105 @@ public class PlayerNetwork : NetworkBehaviour
         if (!FireCooldown.ExpiredOrNotRunning(Runner))
             return;
 
-        FireCooldown = TickTimer.CreateFromSeconds(Runner, rifleFireInterval);
-
+        float finalFireInterval = rifleFireInterval * Mathf.Max(0.05f, FireIntervalMultiplier);
+        FireCooldown = TickTimer.CreateFromSeconds(Runner, finalFireInterval);
         FireAnimCount++;
 
-        GetFireRay(inputAimOrigin, inputAimDirection, out Vector3 origin, out Vector3 direction);
+        GetFireRay(inputAimOrigin, inputAimDirection, out Vector3 aimOrigin, out Vector3 aimDirection);
 
-        if (drawFireDebugRay)
-            Debug.DrawRay(origin, direction * rifleRange, Color.red, 0.2f);
+        Vector3 targetPoint = aimOrigin + aimDirection * rifleRange;
 
-        RaycastHit[] hits = Physics.RaycastAll(
-            origin,
-            direction,
+        RaycastHit[] aimHits = Physics.RaycastAll(
+            aimOrigin,
+            aimDirection,
             rifleRange,
             rifleHitMask,
             QueryTriggerInteraction.Ignore
         );
 
-        if (hits == null || hits.Length == 0)
-            return;
-
-        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
-
-        foreach (RaycastHit hit in hits)
+        if (aimHits != null && aimHits.Length > 0)
         {
-            PlayerNetwork hitPlayer = hit.collider.GetComponentInParent<PlayerNetwork>();
+            System.Array.Sort(aimHits, (a, b) => a.distance.CompareTo(b.distance));
 
-            // �ڱ� �ڽ��� KCCCollider�� ����
-            if (hitPlayer == this)
-                continue;
-
-            PlayerHealth hitHealth = hit.collider.GetComponentInParent<PlayerHealth>();
-
-            if (hitHealth != null)
+            foreach (RaycastHit hit in aimHits)
             {
-                bool damageApplied = hitHealth.TakeDamage(rifleDamage, this);
+                PlayerNetwork hitPlayer = hit.collider.GetComponentInParent<PlayerNetwork>();
 
-                if (damageApplied)
-                    HitConfirmCount++;
+                if (hitPlayer == this)
+                    continue;
 
+                targetPoint = hit.point;
                 break;
             }
-
-            // �÷��̾ �ƴ� ù ��° ��ü�� ������ �Ѿ��� �ű⼭ ����
-            break;
         }
+
+        Vector3 spawnPos = GetFireOriginPosition();
+        Vector3 projectileDir = (targetPoint - spawnPos).normalized;
+
+        if (projectileDir.sqrMagnitude < 0.0001f)
+            projectileDir = GetAimDirection();
+
+        spawnPos += projectileDir * projectileSpawnForwardOffset;
+
+        Debug.DrawLine(transform.position, spawnPos, Color.cyan, 1.0f);
+        Debug.DrawRay(spawnPos, projectileDir * 5f, Color.yellow, 1.0f);
+
+        Transform activeMuzzle = playerVisuals != null ? playerVisuals.GetActiveMuzzle(CharacterId) : null;
+
+        int projectileCount = Mathf.Max(1, 1 + ProjectileExtraProjectiles);
+        float spreadAngle = Mathf.Max(0f, ProjectileSpreadAngle);
+
+        int finalDamage = Mathf.Max(
+            1,
+            Mathf.RoundToInt(rifleDamage * Mathf.Max(0.05f, ProjectileDamageMultiplier))
+        );
+
+        float finalSpeed = projectileSpeed * Mathf.Max(0.05f, ProjectileSpeedMultiplier);
+        float finalSize = Mathf.Max(0.1f, ProjectileSizeMultiplier);
+
+        for (int i = 0; i < projectileCount; i++)
+        {
+            Vector3 shotDir = GetSpreadProjectileDirection(projectileDir, i, projectileCount, spreadAngle);
+            Vector3 shotSpawnPos = GetFireOriginPosition() + shotDir * projectileSpawnForwardOffset;
+
+            Debug.DrawRay(shotSpawnPos, shotDir * 5f, Color.yellow, 1.0f);
+
+            Runner.Spawn(
+                rifleProjectilePrefab,
+                shotSpawnPos,
+                Quaternion.LookRotation(shotDir),
+                Object.InputAuthority,
+                (runner, obj) =>
+                {
+                    RifleProjectile projectile = obj.GetComponent<RifleProjectile>();
+                    if (projectile != null)
+                        projectile.Init(runner, this, shotDir, finalSpeed, finalDamage, finalSize);
+                }
+            );
+        }
+    }
+
+    public void AddHitConfirm()
+    {
+        if (!HasStateAuthority)
+            return;
+
+        HitConfirmCount++;
     }
 
     private void UseAbility()
     {
-        // ���߿� ĳ���ͺ� �ɷ� ����
+        // ���߿� ĳ���ͺ� �ɷ� ����
     }
 
     private void Reload()
     {
-        // ���߿� ������ ����
+        // ���߿� ������ ����
     }
 
     private void HoldAltFire()
     {
-        // ���߿� ��Ŭ�� ����/������� ����
+        // ���߿� ��Ŭ�� ����/������� ����
     }
 
     private void TriggerJumpAnimation()
@@ -567,7 +671,7 @@ public class PlayerNetwork : NetworkBehaviour
         HitConfirmCount = 0;
     }
 
-    public void SetOfferedAugments(int a0, int a1, int a2)
+    public void SetOfferedAugments(int a0, int a1, int a2, bool canSelect)
     {
         if (!HasStateAuthority) return;
 
@@ -576,7 +680,8 @@ public class PlayerNetwork : NetworkBehaviour
         OfferedAugmentId2 = a2;
 
         SelectedAugmentId = -1;
-        HasSelectedAugmentNet = false;
+        CanSelectAugmentNet = canSelect;
+        HasSelectedAugmentNet = !canSelect;
     }
 
     public int GetOfferedAugmentId(int slotIndex)
@@ -592,31 +697,94 @@ public class PlayerNetwork : NetworkBehaviour
 
     public void ApplyAugment(AugmentDefinition def)
     {
-        if (!HasStateAuthority || def == null) return;
+        if (!HasStateAuthority || def == null)
+            return;
 
-        switch (def.augmentType)
+        ProjectileExtraProjectiles += Mathf.Max(0, def.extraProjectiles);
+
+        if (def.spreadAngle > 0f)
+            ProjectileSpreadAngle = Mathf.Max(ProjectileSpreadAngle, def.spreadAngle);
+
+        ProjectileSizeMultiplier *= Mathf.Max(0.05f, def.projectileSizeMultiplier);
+        ProjectileSpeedMultiplier *= Mathf.Max(0.05f, def.projectileSpeedMultiplier);
+        ProjectileDamageMultiplier *= Mathf.Max(0.05f, def.damageMultiplier);
+        FireIntervalMultiplier *= Mathf.Max(0.05f, def.fireIntervalMultiplier);
+
+        Debug.Log($"[Augment] Slot {SlotIndex} applied {def.displayName}");
+    }
+
+    private Vector3 GetSpreadProjectileDirection(Vector3 centerDirection, int index, int count, float spreadAngle)
+    {
+        if (centerDirection.sqrMagnitude < 0.0001f)
+            centerDirection = transform.forward;
+
+        centerDirection.Normalize();
+
+        if (spreadAngle <= 0f)
+            return centerDirection;
+
+        float yawOffset;
+
+        if (count <= 1)
         {
-            case AugmentType.MoveSpeed:
-                MoveSpeedBonus += def.value;
-                break;
-
-            case AugmentType.DashDistance:
-                DashDistanceBonus += def.value;
-                break;
-
-            case AugmentType.DashCooldown:
-                if (DashCooldownMultiplier <= 0f)
-                    DashCooldownMultiplier = 1f;
-
-                DashCooldownMultiplier *= def.value;
-                break;
+            // Rapid Barreló�� �ܹ��ε� ������ �ִ� ���
+            yawOffset = Random.Range(-spreadAngle * 0.5f, spreadAngle * 0.5f);
         }
+        else
+        {
+            // Multi Shotó�� ���� ���̸� �յ� �л�
+            float t = count == 1 ? 0.5f : index / (float)(count - 1);
+            yawOffset = Mathf.Lerp(-spreadAngle * 0.5f, spreadAngle * 0.5f, t);
+        }
+
+        Quaternion yawRotation = Quaternion.AngleAxis(yawOffset, Vector3.up);
+        return (yawRotation * centerDirection).normalized;
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    public void RPC_RequestApplyProfile(byte requestedCharacterId, string requestedPlayerName, string requestedCharacterName)
+    {
+        if (playerVisuals != null && !playerVisuals.IsValidCharacterId(requestedCharacterId))
+            requestedCharacterId = 0;
+
+        Debug.Log($"[PlayerNetwork] Apply profile requested. RequestedCharacterId={requestedCharacterId}, Name={requestedPlayerName}, Character={requestedCharacterName}");
+
+        if (playerVisuals != null && !playerVisuals.IsValidCharacterId(requestedCharacterId))
+        {
+            Debug.LogWarning($"[PlayerNetwork] Invalid CharacterId {requestedCharacterId}. Fallback to CharacterA. Check PlayerVisuals Characters array.");
+            requestedCharacterId = 0;
+        }
+
+        string safeName = (requestedPlayerName ?? "").Trim();
+
+        if (string.IsNullOrWhiteSpace(safeName))
+            safeName = $"Player {SlotIndex + 1}";
+
+        if (safeName.Length > LocalPlayerProfile.MaxNameLength)
+            safeName = safeName.Substring(0, LocalPlayerProfile.MaxNameLength);
+
+        string safeCharacterName = (requestedCharacterName ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(safeCharacterName))
+            safeCharacterName = $"Character {requestedCharacterId + 1}";
+        if (safeCharacterName.Length > 31)
+            safeCharacterName = safeCharacterName.Substring(0, 31);
+
+        CharacterId = requestedCharacterId;
+        PlayerName = safeName;
+        CharacterDisplayName = safeCharacterName;
+        HasAppliedProfile = true;
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    public void RPC_SetBackendIdentity(long backendUserId)
+    {
+        BackendUserId = backendUserId < 0 ? 0 : backendUserId;
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     public void RPC_RequestCharacter(byte requestedCharacterId)
     {
-        if (requestedCharacterId > 1)
+        if (playerVisuals != null && !playerVisuals.IsValidCharacterId(requestedCharacterId))
             return;
 
         CharacterId = requestedCharacterId;
@@ -647,6 +815,53 @@ public class PlayerNetwork : NetworkBehaviour
         SelectedAugmentId = augmentId;
         HasSelectedAugmentNet = true;
 
+        RecordSelectedAugment(augmentId, match.RoundIndex);
+
         match.NotifyPlayerSelectedAugment(this);
+    }
+
+    // 호스트에서만 호출. 이번 매치에서 선택한 augment를 누적 기록한다.
+    private void RecordSelectedAugment(int augmentId, int roundIndex)
+    {
+        if (!HasStateAuthority)
+            return;
+
+        if (AugmentHistoryCount >= MaxAugmentHistory)
+            return;
+
+        AugmentHistoryIds.Set(AugmentHistoryCount, augmentId);
+        AugmentHistoryRounds.Set(AugmentHistoryCount, roundIndex);
+        AugmentHistoryCount++;
+    }
+
+    // 매치 시작 시 호스트가 누적 기록을 초기화한다.
+    public void ResetAugmentHistory()
+    {
+        if (!HasStateAuthority)
+            return;
+
+        for (int i = 0; i < MaxAugmentHistory; i++)
+        {
+            AugmentHistoryIds.Set(i, -1);
+            AugmentHistoryRounds.Set(i, -1);
+        }
+
+        AugmentHistoryCount = 0;
+    }
+
+    public int GetSelectedAugmentId(int index)
+    {
+        if (index < 0 || index >= AugmentHistoryCount)
+            return -1;
+
+        return AugmentHistoryIds.Get(index);
+    }
+
+    public int GetSelectedAugmentRound(int index)
+    {
+        if (index < 0 || index >= AugmentHistoryCount)
+            return -1;
+
+        return AugmentHistoryRounds.Get(index);
     }
 }
