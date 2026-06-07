@@ -227,7 +227,7 @@ public class MainMenuFlowUI : MonoBehaviour
         if (continueButton != null) continueButton.interactable = true;
 
         Debug.LogWarning($"[MainMenu] Failed to update nickname: {error}");
-        ShowPopup($"Failed to update nickname.\n{error}");
+        ShowPopup($"Failed to update nickname.\n{ErrorMessageFormatter.ToFriendly(error)}");
     }
 
     private void SelectPreviousCharacter()

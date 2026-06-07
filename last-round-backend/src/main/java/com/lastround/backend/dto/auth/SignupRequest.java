@@ -1,7 +1,6 @@
 // file: last-round-backend/src/main/java/com/lastround/backend/dto/auth/SignupRequest.java
 package com.lastround.backend.dto.auth;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -11,7 +10,6 @@ import lombok.Setter;
 @Setter
 public class SignupRequest {
 
-    @Email
     @NotBlank
     private String email;
 
