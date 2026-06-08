@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AugmentDefinition
   id: 9
   displayName: Poison Coating
-  description: Fires 3 weaker bullets.
+  description: Fires Posion bullets.
   icon: {fileID: 0}
   rarity: 0
   category: 0
