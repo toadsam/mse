@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 6
   displayName: Grow Shot
   description: Damage increases with distance.
-  icon: {fileID: 0}
+  icon: {fileID: -1942285962, guid: d5b6473c28720d04384eaba0a10b1dc7, type: 3}
   rarity: 0
   category: 0
   extraProjectiles: 0

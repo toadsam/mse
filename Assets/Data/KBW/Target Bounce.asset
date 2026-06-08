@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 15
   displayName: Target Bounce
   description: Bounced bullets curve toward enemies.
-  icon: {fileID: 0}
+  icon: {fileID: -1106449047, guid: aa039d2919578fb42815edf599b5b932, type: 3}
   rarity: 0
   category: 0
   extraProjectiles: 0

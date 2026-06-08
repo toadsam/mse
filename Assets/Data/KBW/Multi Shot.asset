@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 8
   displayName: Multi Shot
   description: Fires 3 weaker bullets.
-  icon: {fileID: 0}
+  icon: {fileID: -1369031222, guid: 940ac205535e6db4ea12b15276fcdd96, type: 3}
   rarity: 0
   category: 0
   extraProjectiles: 2

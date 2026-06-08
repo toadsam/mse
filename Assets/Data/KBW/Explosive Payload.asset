@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 3
   displayName: Explosive Payload
   description: Bullets explode on impact.
-  icon: {fileID: 0}
+  icon: {fileID: -1352721945, guid: 4c8977181c28d74418141637925c76a9, type: 3}
   rarity: 0
   category: 0
   extraProjectiles: 0

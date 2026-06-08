@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 5
   displayName: Grenade Kit
   description: Replaces item with grenades.
-  icon: {fileID: 0}
+  icon: {fileID: 1323748607, guid: 7e5586e5eb9d308449a8e3100a4b4b09, type: 3}
   rarity: 0
   category: 2
   extraProjectiles: 0

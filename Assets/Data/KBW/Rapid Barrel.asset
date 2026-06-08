@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 10
   displayName: Rapid Barrel
   description: Fires faster, but less accurately.
-  icon: {fileID: 0}
+  icon: {fileID: -705633554, guid: 690c771171917524a9ea39c547923b76, type: 3}
   rarity: 0
   category: 0
   extraProjectiles: 0

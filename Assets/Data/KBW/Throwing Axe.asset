@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 16
   displayName: Throwing Axe
   description: Throw an axe. Pick it up to reuse.
-  icon: {fileID: 0}
+  icon: {fileID: 2040215511, guid: cbf872ea46b1ac24ba87529e5b304e24, type: 3}
   rarity: 0
   category: 0
   extraProjectiles: 0

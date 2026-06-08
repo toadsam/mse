@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 14
   displayName: Spinning Knife
   description: A spinning weapon damages nearby enemies.
-  icon: {fileID: 0}
+  icon: {fileID: -1041301281, guid: ce935b60524bece4cadb3948d6d0e7a5, type: 3}
   rarity: 0
   category: 4
   extraProjectiles: 0

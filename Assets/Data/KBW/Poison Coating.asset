@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 9
   displayName: Poison Coating
   description: Fires Posion bullets.
-  icon: {fileID: 0}
+  icon: {fileID: -1234375079, guid: 10e8584b19272644fa1fc7e846c3f94b, type: 3}
   rarity: 0
   category: 0
   extraProjectiles: 0

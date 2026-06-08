@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 0
   displayName: Big Round
   description: Bigger bullets. More damage.
-  icon: {fileID: 0}
+  icon: {fileID: 1890418978, guid: f9ebdab8da2a1fe4382ba120565d93e3, type: 3}
   rarity: 0
   category: 0
   extraProjectiles: 0

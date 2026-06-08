@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 17
   displayName: Toxic Cloud
   description: Impacts leave a poison cloud.
-  icon: {fileID: 0}
+  icon: {fileID: -647360497, guid: 0aedfde7d88fd37408306a7ecf71d2f2, type: 3}
   rarity: 0
   category: 0
   extraProjectiles: 0

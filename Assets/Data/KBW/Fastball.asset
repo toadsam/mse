@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 4
   displayName: Fastball
   description: Bullets fly much faster.
-  icon: {fileID: 0}
+  icon: {fileID: 1176004128, guid: 379991f21df096545bbdd507c4758493, type: 3}
   rarity: 0
   category: 0
   extraProjectiles: 0

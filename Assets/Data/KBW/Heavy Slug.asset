@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 7
   displayName: Heavy Slug
   description: Slower fire. Stronger shots.
-  icon: {fileID: 0}
+  icon: {fileID: -359181630, guid: da29447bc0781a543819a31771c6ff21, type: 3}
   rarity: 0
   category: 0
   extraProjectiles: 0

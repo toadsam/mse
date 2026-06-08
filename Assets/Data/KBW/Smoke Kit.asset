@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 13
   displayName: Smoke Kit
   description: Replaces item with smoke bombs.
-  icon: {fileID: 0}
+  icon: {fileID: -1800589809, guid: fe4bd0f1b3429db4fb8fdda274a3c54e, type: 3}
   rarity: 0
   category: 4
   extraProjectiles: 0

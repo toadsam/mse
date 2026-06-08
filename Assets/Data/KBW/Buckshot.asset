@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 1
   displayName: Buckshot
   description: Fires a wide spread of bullets.
-  icon: {fileID: 0}
+  icon: {fileID: 956653424, guid: 7334b7e6e3d5ed04dafeda0be751b365, type: 3}
   rarity: 0
   category: 0
   extraProjectiles: 4

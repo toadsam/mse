@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 11
   displayName: Ricochet Rounds
   description: Bullets bounce off walls.
-  icon: {fileID: 0}
+  icon: {fileID: -138575584, guid: 1985e93ee8605564f8898bee04b7f964, type: 3}
   rarity: 0
   category: 0
   extraProjectiles: 0
