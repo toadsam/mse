@@ -54,9 +54,11 @@ public class ThrowingAxeProjectile : NetworkBehaviour
         if (!HasStateAuthority)
             return;
 
-        OwnerIdNet = owner != null && owner.Object != null
-            ? owner.Object.Id
-            : default;
+        OwnerIdNet = owner != null && owner.Object != null ? owner.Object.Id : default;
+
+        IsStuckNet = false;
+        LifeTimer = TickTimer.CreateFromSeconds(runner, maxLifeSeconds);
+        PickupDelayTimer = default;
 
         moveDirection = direction;
         moveDirection.y = 0f;
@@ -329,9 +331,7 @@ public class ThrowingAxeProjectile : NetworkBehaviour
         hasInitialized = false;
         spinAngle = 0f;
 
-        OwnerIdNet = default;
-        IsStuckNet = false;
-        LifeTimer = default;
-        PickupDelayTimer = default;
+        if (visualRoot != null)
+            visualRoot.localRotation = Quaternion.identity;
     }
 }
