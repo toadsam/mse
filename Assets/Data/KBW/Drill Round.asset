@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 2
   displayName: Drill Round
   description: Bullets pierce one target.
-  icon: {fileID: 0}
+  icon: {fileID: -724255334, guid: 23e7b1e1be00451499d4cf00835dcb60, type: 3}
   rarity: 0
   category: 0
   extraProjectiles: 0
