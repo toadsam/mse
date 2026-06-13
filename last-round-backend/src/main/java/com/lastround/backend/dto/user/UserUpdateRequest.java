@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
+// Request DTO for the PUT /api/user/update endpoint. Currently only nickname is updatable.
 @Getter
 @Setter
 public class UserUpdateRequest {

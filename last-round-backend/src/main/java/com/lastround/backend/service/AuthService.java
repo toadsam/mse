@@ -15,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+// Service handling user registration, login, and JWT token lifecycle.
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -24,6 +25,7 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
 
+    // Creates a new user account after enforcing unique email and nickname, then issues tokens.
     @Transactional
     public AuthResponse signup(SignupRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -43,6 +45,7 @@ public class AuthService {
         return issueTokens(saved);
     }
 
+    // Authenticates the user by email/password and issues fresh tokens on success.
     @Transactional
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
@@ -55,6 +58,7 @@ public class AuthService {
         return issueTokens(user);
     }
 
+    // Validates the existing refresh token, rotates it, and issues a new access token.
     @Transactional
     public AuthResponse refresh(String refreshToken) {
         RefreshToken tokenEntity = refreshTokenService.validate(refreshToken);
@@ -63,6 +67,7 @@ public class AuthService {
         String newAccessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getEmail());
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
 
+        // Token rotation: the old refresh token is replaced with the new one atomically.
         refreshTokenService.rotate(tokenEntity, newRefreshToken, jwtTokenProvider.getRefreshTokenDays());
 
         return AuthResponse.builder()
@@ -74,6 +79,7 @@ public class AuthService {
                 .build();
     }
 
+    // Shared helper: generates both tokens, persists the refresh token, and builds the response.
     private AuthResponse issueTokens(User user) {
         String accessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getEmail());
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());

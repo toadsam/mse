@@ -6,6 +6,7 @@ import lombok.Getter;
 
 import java.util.List;
 
+// Paginated wrapper for the match history endpoint response.
 @Getter
 @Builder
 public class MatchHistoryResponse {

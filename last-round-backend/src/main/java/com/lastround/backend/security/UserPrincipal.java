@@ -9,6 +9,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.List;
 
+// Spring Security principal wrapping a User entity — placed in the SecurityContext after JWT validation.
 @Getter
 public class UserPrincipal implements UserDetails {
     private final Long id;
@@ -21,6 +22,7 @@ public class UserPrincipal implements UserDetails {
         this.password = user.getPassword();
     }
 
+    // No role-based access control is implemented; all authenticated users have the same access.
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of();
@@ -31,6 +33,7 @@ public class UserPrincipal implements UserDetails {
         return password;
     }
 
+    // Spring Security uses this as the "username" identifier; we use email.
     @Override
     public String getUsername() {
         return email;

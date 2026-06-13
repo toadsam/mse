@@ -11,12 +11,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+// Service for reading and updating the authenticated user's own profile.
 @Service
 @RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
 
+    // Returns the current user's profile information.
     @Transactional(readOnly = true)
     public UserMeResponse getMe(Long userId) {
         User user = userRepository.findById(userId)
@@ -30,6 +32,7 @@ public class UserService {
                 .build();
     }
 
+    // Updates the nickname; skips the uniqueness check if the user keeps their current nickname.
     @Transactional
     public UserMeResponse update(Long userId, UserUpdateRequest request) {
         User user = userRepository.findById(userId)

@@ -4,6 +4,8 @@ package com.lastround.backend.dto.auth;
 import lombok.Builder;
 import lombok.Getter;
 
+// Response DTO returned after successful signup, login, or token refresh.
+// The refresh token is also set as an HTTP-only cookie by the controller.
 @Getter
 @Builder
 public class AuthResponse {

@@ -10,15 +10,18 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
+// Seeds the database with default augment data on application startup.
 @Configuration
 @RequiredArgsConstructor
 public class DataInitializer {
 
     private final AugmentRepository augmentRepository;
 
+    // Inserts the default augment list only when the table is empty (idempotent).
     @Bean
     public CommandLineRunner seedAugments() {
         return args -> {
+            // Skip seeding if augments already exist to avoid duplicate entries.
             if (augmentRepository.count() > 0) {
                 return;
             }

@@ -5,6 +5,8 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
+// JPA entity for the match_player_stats table — records one player's stats in a single match.
+// The unique constraint on (match_id, user_id) prevents duplicate stat rows per player per match.
 @Getter
 @Setter
 @Builder
@@ -31,6 +33,7 @@ public class MatchPlayerStat {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    // "WIN" or "LOSE" — mirrors the constraint in MatchPlayerResultRequest.
     @Column(nullable = false, length = 20)
     private String result;
 

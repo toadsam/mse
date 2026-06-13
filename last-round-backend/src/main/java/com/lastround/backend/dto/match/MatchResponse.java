@@ -7,6 +7,7 @@ import lombok.Getter;
 import java.time.LocalDateTime;
 import java.util.List;
 
+// Response DTO representing a single completed match with both players' summary data.
 @Getter
 @Builder
 public class MatchResponse {
@@ -17,5 +18,6 @@ public class MatchResponse {
     private Integer player1Score;
     private Integer player2Score;
     private LocalDateTime createdAt;
+    // Per-player detail (stats + augments) for each participant.
     private List<MatchPlayerHistoryResponse> players;
 }

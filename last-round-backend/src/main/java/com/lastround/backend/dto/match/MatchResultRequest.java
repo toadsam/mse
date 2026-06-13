@@ -12,6 +12,7 @@ import lombok.Setter;
 
 import java.util.List;
 
+// Request DTO sent by the game host (via Unity) to persist a completed match result.
 @Getter
 @Setter
 public class MatchResultRequest {
@@ -25,6 +26,7 @@ public class MatchResultRequest {
     @NotNull
     private Long winnerId;
 
+    // Score range 0–10 mirrors the in-game round system.
     @NotNull
     @Min(0)
     @Max(10)
@@ -35,6 +37,7 @@ public class MatchResultRequest {
     @Max(10)
     private Integer player2Score;
 
+    // Exactly two players are expected per match.
     @NotEmpty
     @Size(min = 2, max = 2)
     @Valid

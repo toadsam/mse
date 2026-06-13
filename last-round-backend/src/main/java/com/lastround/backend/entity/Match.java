@@ -6,6 +6,8 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
+// JPA entity for the matches table — records one completed 1v1 game session.
+// Player IDs are stored as plain Long columns (not FK relations) for write performance.
 @Getter
 @Setter
 @Builder
@@ -13,6 +15,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Entity
 @Table(name = "matches", indexes = {
+    // Indexes on player columns support fast history lookups per user.
     @Index(name = "idx_matches_created_at", columnList = "created_at"),
     @Index(name = "idx_matches_player1", columnList = "player1id"),
     @Index(name = "idx_matches_player2", columnList = "player2id"),

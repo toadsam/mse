@@ -14,6 +14,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.UUID;
 
+// Handles JWT creation, parsing, and validation for both access and refresh tokens.
 @Component
 public class JwtTokenProvider {
 
@@ -21,6 +22,7 @@ public class JwtTokenProvider {
     private final long accessTokenMinutes;
     private final long refreshTokenDays;
 
+    // Derives the HMAC signing key from the configured secret string.
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.access-token-expiration-minutes}") long accessTokenMinutes,
@@ -31,6 +33,7 @@ public class JwtTokenProvider {
         this.refreshTokenDays = refreshTokenDays;
     }
 
+    // Creates a short-lived access token containing the userId (subject) and email claim.
     public String generateAccessToken(Long userId, String email) {
         Instant now = Instant.now();
         return Jwts.builder()
@@ -43,6 +46,7 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    // Creates a long-lived refresh token containing only the userId; used for token rotation.
     public String generateRefreshToken(Long userId) {
         Instant now = Instant.now();
         return Jwts.builder()
@@ -54,6 +58,7 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    // Parses and verifies the token signature; throws JwtException if invalid or expired.
     public Claims parseClaims(String token) {
         return Jwts.parser()
                 .verifyWith(key)
@@ -62,6 +67,7 @@ public class JwtTokenProvider {
                 .getPayload();
     }
 
+    // Returns false for any token that fails signature verification or has expired.
     public boolean isValid(String token) {
         try {
             parseClaims(token);
@@ -71,6 +77,7 @@ public class JwtTokenProvider {
         }
     }
 
+    // Extracts the userId stored as the JWT subject claim.
     public Long getUserId(String token) {
         return Long.parseLong(parseClaims(token).getSubject());
     }

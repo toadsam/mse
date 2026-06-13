@@ -4,6 +4,7 @@ package com.lastround.backend.dto.augment;
 import lombok.Builder;
 import lombok.Getter;
 
+// Response DTO for a single augment entry returned by the augment catalog endpoint.
 @Getter
 @Builder
 public class AugmentResponse {

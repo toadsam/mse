@@ -4,6 +4,8 @@ package com.lastround.backend.exception;
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
+// Enum mapping each business error to an HTTP status and a human-readable message.
+// GlobalExceptionHandler reads status from here to set the response status code.
 @Getter
 public enum ErrorCode {
     INVALID_REQUEST(HttpStatus.BAD_REQUEST, "Invalid request"),

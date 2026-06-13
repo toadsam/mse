@@ -6,6 +6,7 @@ import lombok.Getter;
 
 import java.time.LocalDateTime;
 
+// Response DTO returned for the GET /api/user/me endpoint.
 @Getter
 @Builder
 public class UserMeResponse {
