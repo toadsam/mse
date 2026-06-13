@@ -14,6 +14,7 @@ import java.math.RoundingMode;
 import java.util.Comparator;
 import java.util.List;
 
+// Service that computes and returns the ranked player leaderboard.
 @Service
 @RequiredArgsConstructor
 public class LeaderboardService {
@@ -21,6 +22,7 @@ public class LeaderboardService {
     private final UserRepository userRepository;
     private final MatchRepository matchRepository;
 
+    // Calculates win rate for each user and sorts by win rate desc, then wins desc, then matches desc.
     @Transactional(readOnly = true)
     public List<LeaderboardEntry> getLeaderboard() {
         List<User> users = userRepository.findAll();
@@ -29,6 +31,7 @@ public class LeaderboardService {
                 .map(user -> {
                     long totalMatches = matchRepository.countTotalByUserId(user.getId());
                     long totalWins = matchRepository.countByWinnerId(user.getId());
+                    // Avoid division by zero; BigDecimal rounds to 2 decimal places for display.
                     double winRate = totalMatches == 0 ? 0.0
                             : BigDecimal.valueOf((double) totalWins * 100.0 / totalMatches)
                             .setScale(2, RoundingMode.HALF_UP)

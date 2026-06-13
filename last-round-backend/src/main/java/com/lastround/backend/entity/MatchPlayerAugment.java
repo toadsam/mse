@@ -5,6 +5,8 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
+// JPA entity for the match_player_augments table — records each augment pick per player per match.
+// Unique constraint on (match_id, user_id, selected_round, selected_order) prevents duplicate picks.
 @Getter
 @Setter
 @Builder
@@ -34,12 +36,12 @@ public class MatchPlayerAugment {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    // Unity augment 세트와 DB augments 시드가 다르므로 augment_id(FK)는 비워둘 수 있다.
+    // augment FK is nullable: Unity augments may not all exist in the DB seed.
     @ManyToOne(fetch = FetchType.LAZY, optional = true)
     @JoinColumn(name = "augment_id", nullable = true)
     private Augment augment;
 
-    // Unity 클라이언트가 보낸 augment 이름(displayName)을 그대로 보존한다.
+    // The augment display name sent directly from the Unity client; preserved for historical accuracy.
     @Column(name = "augment_name", length = 80)
     private String augmentName;
 

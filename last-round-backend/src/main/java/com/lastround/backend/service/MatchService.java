@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+// Service for persisting match results and retrieving paginated match history.
 @Service
 @RequiredArgsConstructor
 public class MatchService {
@@ -45,6 +46,7 @@ public class MatchService {
     private final MatchPlayerAugmentRepository matchPlayerAugmentRepository;
     private final UserRepository userRepository;
 
+    // Validates the request, saves the Match header, then persists per-player stats and augments.
     @Transactional
     public MatchResponse saveResult(MatchResultRequest request) {
         validatePlayers(request);
@@ -62,6 +64,7 @@ public class MatchService {
         return toResponse(saved);
     }
 
+    // Returns paginated match history for a user, enriched with per-player stats and augments.
     @Transactional(readOnly = true)
     public MatchHistoryResponse getHistory(Long userId, int page, int size) {
         Page<Match> result = matchRepository.findByUserId(
@@ -73,6 +76,7 @@ public class MatchService {
             .map(Match::getId)
             .toList();
 
+        // Batch-load all player details for the current page to avoid per-match queries.
         Map<Long, List<MatchPlayerHistoryResponse>> playersByMatchId = loadPlayersByMatchId(matchIds);
 
         List<MatchResponse> content = result.getContent().stream()
@@ -88,6 +92,7 @@ public class MatchService {
                 .build();
     }
 
+    // Top-level validation: checks player identity, winner validity, and DB existence.
     private void validatePlayers(MatchResultRequest request) {
         if (request.getPlayer1Id().equals(request.getPlayer2Id())) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Players must be different");
@@ -104,6 +109,7 @@ public class MatchService {
         validatePlayerPayload(request);
     }
 
+    // Validates that the player result list matches exactly the two declared player IDs.
     private void validatePlayerPayload(MatchResultRequest request) {
         if (request.getPlayers().size() != 2) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Exactly two player results are required");
@@ -121,6 +127,7 @@ public class MatchService {
         request.getPlayers().forEach(player -> validatePlayerResult(request, player));
     }
 
+    // Validates that each player's score and WIN/LOSE result are consistent with the match summary.
     private void validatePlayerResult(MatchResultRequest request, MatchPlayerResultRequest player) {
         Integer expectedScore = player.getUserId().equals(request.getPlayer1Id())
                 ? request.getPlayer1Score()
@@ -139,6 +146,7 @@ public class MatchService {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Losing player result must be LOSE");
         }
 
+        // Prevent duplicate (round, order) slots per player within a single match.
         Set<String> augmentSlots = new HashSet<>();
         player.getAugments().forEach(augment -> {
             String slotKey = augment.getSelectedRound() + ":" + augment.getSelectedOrder();
@@ -151,9 +159,9 @@ public class MatchService {
         }
 
         private void validateAugmentIds(MatchPlayerResultRequest player) {
-        // augmentId는 선택값이다(Unity augment가 DB augments에 없을 수 있음).
-        // 값이 채워진 id(>0)만 존재 여부를 검증하고, 없으면 이름만으로 저장한다.
-        // (Unity JsonUtility는 id를 항상 0으로 직렬화하므로 0/음수는 "id 없음"으로 간주.)
+        // augmentId is optional: Unity augments may not exist in the DB augments table.
+        // Only validate IDs that are explicitly provided (> 0); store by name alone otherwise.
+        // Unity's JsonUtility always serializes missing longs as 0, so 0 / negative means "no ID".
         Set<Long> augmentIds = player.getAugments().stream()
             .map(augment -> augment.getAugmentId())
             .filter(id -> id != null && id > 0)
@@ -172,7 +180,9 @@ public class MatchService {
         }
         }
 
+        // Saves MatchPlayerStat and MatchPlayerAugment rows for both players in a single transaction.
         private void persistPlayerDetails(Match savedMatch, MatchResultRequest request) {
+        // Batch-fetch users and augments to avoid per-row queries.
         Map<Long, User> usersById = userRepository.findAllById(
                 request.getPlayers().stream().map(MatchPlayerResultRequest::getUserId).toList()
             ).stream()
@@ -204,6 +214,7 @@ public class MatchService {
                 .map(augment -> MatchPlayerAugment.builder()
                     .match(savedMatch)
                     .user(usersById.get(player.getUserId()))
+                    // Set augment FK to null when the ID is absent (0 / negative from Unity serialization).
                     .augment(augment.getAugmentId() == null || augment.getAugmentId() <= 0 ? null : augmentsById.get(augment.getAugmentId()))
                     .augmentName(augment.getAugmentName())
                     .selectedRound(augment.getSelectedRound())
@@ -216,6 +227,7 @@ public class MatchService {
         }
     }
 
+    // Overload used when player detail is not needed (e.g., immediately after saveResult).
     private MatchResponse toResponse(Match match) {
         return toResponse(match, List.of());
         }
@@ -233,6 +245,7 @@ public class MatchService {
                 .build();
     }
 
+        // Batch-loads stats and augments for a page of matches, then groups them by match ID.
         private Map<Long, List<MatchPlayerHistoryResponse>> loadPlayersByMatchId(List<Long> matchIds) {
         if (matchIds.isEmpty()) {
             return Map.of();
@@ -241,6 +254,7 @@ public class MatchService {
         List<MatchPlayerStat> stats = matchPlayerStatRepository.findAllByMatchIds(matchIds);
         List<MatchPlayerAugment> augments = matchPlayerAugmentRepository.findAllByMatchIds(matchIds);
 
+        // Build a nested map: matchId → userId → augment list, preserving insertion order.
         Map<Long, Map<Long, List<MatchPlayerAugmentResponse>>> augmentsByMatchAndUser = augments.stream()
             .collect(Collectors.groupingBy(
                 augment -> augment.getMatch().getId(),
@@ -285,7 +299,8 @@ public class MatchService {
         }
 
         private MatchPlayerAugmentResponse toAugmentResponse(MatchPlayerAugment augment) {
-        // augment FK는 null일 수 있다(Unity augment가 DB에 없는 경우). 이름 컬럼을 우선 사용한다.
+        // The augment FK may be null when the Unity augment name has no matching DB entry.
+        // Prefer the stored augmentName column; fall back to the linked entity's name if needed.
         Augment linked = augment.getAugment();
         String name = augment.getAugmentName() != null ? augment.getAugmentName()
                 : (linked != null ? linked.getName() : null);

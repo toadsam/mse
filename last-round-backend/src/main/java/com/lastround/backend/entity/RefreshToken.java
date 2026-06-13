@@ -6,6 +6,8 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
+// JPA entity for the refresh_tokens table — stores active refresh tokens per user.
+// A unique index on the token column enables fast lookup during token rotation.
 @Getter
 @Setter
 @Builder
@@ -21,6 +23,7 @@ public class RefreshToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // One user can have multiple active tokens (e.g., from different devices).
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -28,6 +31,7 @@ public class RefreshToken {
     @Column(nullable = false, length = 512, unique = true)
     private String token;
 
+    // Tokens past this timestamp are treated as expired and rejected.
     @Column(nullable = false)
     private LocalDateTime expiresAt;
 

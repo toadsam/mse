@@ -12,6 +12,7 @@ import lombok.Setter;
 
 import java.util.List;
 
+// Request DTO representing one player's in-game statistics within a MatchResultRequest.
 @Getter
 @Setter
 public class MatchPlayerResultRequest {
@@ -19,6 +20,7 @@ public class MatchPlayerResultRequest {
     @NotNull
     private Long userId;
 
+    // Accepted values are "WIN" or "LOSE" (validated by regex).
     @NotBlank
     @Size(max = 20)
     @Pattern(regexp = "WIN|LOSE")
@@ -36,6 +38,7 @@ public class MatchPlayerResultRequest {
     @Size(max = 80)
     private String characterName;
 
+    // List of augments chosen by this player; validated recursively.
     @NotNull
     @Valid
     private List<MatchPlayerAugmentRequest> augments;

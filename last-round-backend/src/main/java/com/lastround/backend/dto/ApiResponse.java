@@ -4,6 +4,7 @@ package com.lastround.backend.dto;
 import lombok.Builder;
 import lombok.Getter;
 
+// Generic envelope for all REST API responses: carries a success flag, payload, or error message.
 @Getter
 @Builder
 public class ApiResponse<T> {
@@ -11,6 +12,7 @@ public class ApiResponse<T> {
     private T data;
     private String error;
 
+    // Convenience factory for successful responses.
     public static <T> ApiResponse<T> ok(T data) {
         return ApiResponse.<T>builder()
                 .success(true)
@@ -18,6 +20,7 @@ public class ApiResponse<T> {
                 .build();
     }
 
+    // Convenience factory for error responses.
     public static <T> ApiResponse<T> fail(String error) {
         return ApiResponse.<T>builder()
                 .success(false)

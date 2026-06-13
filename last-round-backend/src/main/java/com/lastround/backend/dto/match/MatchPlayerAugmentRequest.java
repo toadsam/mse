@@ -6,14 +6,15 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
+// Request DTO for one augment selection submitted by a player within a match result.
 @Getter
 @Setter
 public class MatchPlayerAugmentRequest {
 
-    // augmentId는 선택값: Unity augment가 DB augments 테이블에 존재할 때만 채워진다.
+    // augmentId is optional: only populated when the Unity augment name matches a DB entry.
     private Long augmentId;
 
-    // 저장 대상은 augment 이름. Unity의 displayName을 그대로 받는다.
+    // The augment display name sent directly from Unity; stored as-is for historical accuracy.
     @Size(max = 80)
     private String augmentName;
 

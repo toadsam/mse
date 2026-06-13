@@ -9,12 +9,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+// Service layer for the augment catalog — retrieves all available in-game augments.
 @Service
 @RequiredArgsConstructor
 public class AugmentService {
 
     private final AugmentRepository augmentRepository;
 
+    // Returns the full augment list; readOnly transaction avoids unnecessary dirty-checking.
     @Transactional(readOnly = true)
     public List<AugmentResponse> getAugments() {
         return augmentRepository.findAll().stream()

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+// REST controller for submitting match results and querying a player's match history.
 @RestController
 @RequestMapping("/api/match")
 @RequiredArgsConstructor
@@ -23,11 +24,13 @@ public class MatchController {
 
     private final MatchService matchService;
 
+    // POST /api/match/result — persists the final result for a completed match (called by the host).
     @PostMapping("/result")
     public ApiResponse<MatchResponse> result(@Valid @RequestBody MatchResultRequest request) {
         return ApiResponse.ok(matchService.saveResult(request));
     }
 
+    // GET /api/match/history — returns a paginated list of past matches for the authenticated user.
     @GetMapping("/history")
     public ApiResponse<MatchHistoryResponse> history(
             @RequestParam(defaultValue = "0") int page,

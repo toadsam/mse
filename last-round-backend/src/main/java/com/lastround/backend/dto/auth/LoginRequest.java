@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
 
+// Request DTO for the POST /api/auth/login endpoint.
 @Getter
 @Setter
 public class LoginRequest {

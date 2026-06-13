@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Duration;
 
+// REST controller handling user registration, login, and JWT token refresh.
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -30,12 +31,15 @@ public class AuthController {
 
     private final AuthService authService;
 
+    // Refresh token lifetime in days, injected from application properties.
     @Value("${jwt.refresh-token-expiration-days}")
     private long refreshTokenDays;
 
+    // Cookie name for the HTTP-only refresh token, injected from application properties.
     @Value("${jwt.refresh-cookie-name}")
     private String refreshCookieName;
 
+    // POST /api/auth/signup — creates a new account and returns access + refresh tokens.
     @PostMapping("/signup")
     public ApiResponse<AuthResponse> signup(@Valid @RequestBody SignupRequest request, HttpServletResponse response) {
         AuthResponse authResponse = authService.signup(request);
@@ -43,6 +47,7 @@ public class AuthController {
         return ApiResponse.ok(authResponse);
     }
 
+    // POST /api/auth/login — authenticates credentials and returns access + refresh tokens.
     @PostMapping("/login")
     public ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
         AuthResponse authResponse = authService.login(request);
@@ -50,6 +55,8 @@ public class AuthController {
         return ApiResponse.ok(authResponse);
     }
 
+    // POST /api/auth/refresh — issues a new access token using the refresh token.
+    // Accepts the token either in the request body or in the HTTP-only cookie.
     @PostMapping("/refresh")
     public ApiResponse<AuthResponse> refresh(
             @RequestBody(required = false) RefreshRequest request,
@@ -62,6 +69,7 @@ public class AuthController {
         return ApiResponse.ok(authResponse);
     }
 
+    // Prefers the token from the request body; falls back to the HTTP-only cookie.
     private String extractRefreshToken(RefreshRequest request, HttpServletRequest servletRequest) {
         if (request != null && request.getRefreshToken() != null && !request.getRefreshToken().isBlank()) {
             return request.getRefreshToken();
@@ -78,9 +86,11 @@ public class AuthController {
         throw new AppException(ErrorCode.INVALID_TOKEN, "Refresh token is required");
     }
 
+    // Sets the refresh token as an HTTP-only cookie so JavaScript cannot access it.
     private void addRefreshCookie(HttpServletResponse response, String token) {
         ResponseCookie cookie = ResponseCookie.from(refreshCookieName, token)
                 .httpOnly(true)
+                // Set secure=true in production (HTTPS).
                 .secure(false)
                 .path("/")
                 .maxAge(Duration.ofDays(refreshTokenDays))
