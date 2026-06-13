@@ -3,6 +3,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
+// file: Assets/Scripts/JJH/UI/UIButtonAnimator.cs
+// Lightweight hover/press/select animator that also attaches a shared button click sound.
 public class UIButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler, ISelectHandler, IDeselectHandler
 {
     [SerializeField] private float hoverScale = 1.04f;
@@ -18,6 +20,7 @@ public class UIButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointerExi
     private bool isPressed;
     private bool isSelected;
 
+    // Ensures the target button has exactly one animator component configured and ready.
     public static UIButtonAnimator Ensure(Button target)
     {
         if (target == null)
@@ -46,12 +49,14 @@ public class UIButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointerExi
             button.onClick.RemoveListener(PlayClickSound);
     }
 
+    // Resets visual state whenever the button becomes active again.
     private void OnEnable()
     {
         CaptureBaseScale();
         AnimateToTarget(true);
     }
 
+    // Restores the captured base scale when the button is disabled.
     private void OnDisable()
     {
         isHovered = false;
@@ -65,6 +70,7 @@ public class UIButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointerExi
             transform.localScale = baseScale;
     }
 
+    // Keeps disabled buttons snapped to their neutral scale.
     private void Update()
     {
         if (button != null && !button.interactable && transform.localScale != baseScale)
@@ -109,6 +115,7 @@ public class UIButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointerExi
         AnimateToTarget();
     }
 
+    // Resolves the current target scale from pointer/selection state and animates toward it.
     private void AnimateToTarget(bool instant = false)
     {
         CaptureBaseScale();
@@ -137,6 +144,7 @@ public class UIButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointerExi
         scaleRoutine = StartCoroutine(ScaleTo(target));
     }
 
+    // Smoothly interpolates the button scale for hover and press feedback.
     private IEnumerator ScaleTo(Vector3 target)
     {
         Vector3 start = transform.localScale;
@@ -154,6 +162,7 @@ public class UIButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointerExi
         scaleRoutine = null;
     }
 
+    // Captures the original transform scale once so animation always returns to the designer value.
     private void CaptureBaseScale()
     {
         if (rectTransform == null)
@@ -169,6 +178,7 @@ public class UIButtonAnimator : MonoBehaviour, IPointerEnterHandler, IPointerExi
         hasBaseScale = true;
     }
 
+    // Binds the shared UI click sound without duplicating listeners.
     private void BindClickSound()
     {
         if (button == null)

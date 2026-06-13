@@ -5,6 +5,8 @@ using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
+// file: Assets/Scripts/JJH/UI/AudioSettingsUI.cs
+// Persistent audio settings overlay that manages BGM/SFX volume and shared runtime audio helpers.
 public class AudioSettingsUI : MonoBehaviour
 {
     private const string BgmVolumeKey = "Settings.BgmVolume";
@@ -39,6 +41,7 @@ public class AudioSettingsUI : MonoBehaviour
     private float sfxVolume = 1f;
     private bool isOpen;
 
+    // Initializes the persistent UI, audio source, saved settings, and control bindings.
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -59,6 +62,7 @@ public class AudioSettingsUI : MonoBehaviour
         SetVisible(false, true);
     }
 
+    // Registers for scene reloads so audio/UI references stay valid across transitions.
     private void OnEnable()
     {
         SceneManager.sceneLoaded += OnSceneLoaded;
@@ -69,6 +73,7 @@ public class AudioSettingsUI : MonoBehaviour
         SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
+    // Handles hotkeys for opening the panel and keeps phase-driven audio in sync.
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.F10))
@@ -85,6 +90,7 @@ public class AudioSettingsUI : MonoBehaviour
         UpdatePhaseAudio();
     }
 
+    // Opens the settings panel from any caller without needing a scene reference.
     public static void OpenSettings()
     {
         AudioSettingsUI ui = Instance;
@@ -98,6 +104,7 @@ public class AudioSettingsUI : MonoBehaviour
             Debug.LogWarning("[AudioSettingsUI] Settings UI was not found in the loaded scenes.");
     }
 
+    // Plays a one-shot SFX while respecting the global SFX volume setting.
     public static void PlaySfx(AudioSource source, AudioClip clip)
     {
         if (clip == null)
@@ -109,6 +116,7 @@ public class AudioSettingsUI : MonoBehaviour
             GameAudio.PlayClip2D(clip);
     }
 
+    // Falls back to a shared game audio clip when a direct AudioClip reference is missing.
     public static void PlaySfx(AudioSource source, AudioClip clip, GameAudioClipId fallbackClip)
     {
         if (clip != null)
@@ -130,6 +138,7 @@ public class AudioSettingsUI : MonoBehaviour
         SetVisible(false);
     }
 
+    // Locates all scene references required by the settings overlay and configures animation.
     private void ResolveReferences()
     {
         canvas = GetComponent<Canvas>();
@@ -167,6 +176,7 @@ public class AudioSettingsUI : MonoBehaviour
         sfxValueText = sfxRow != null ? FindChildComponent<Text>(sfxRow, "ValueText") : null;
     }
 
+    // Hooks up buttons and sliders after restoring the current saved volume values.
     private void BindControls()
     {
         if (openButton != null)
@@ -194,6 +204,7 @@ public class AudioSettingsUI : MonoBehaviour
         }
     }
 
+    // Creates or reuses the dedicated looping BGM source owned by this settings UI.
     private void EnsureManagedBgmSource()
     {
         Transform sourceTransform = transform.Find("BgmAudioSource");
@@ -219,6 +230,7 @@ public class AudioSettingsUI : MonoBehaviour
             managedBgmSource.Play();
     }
 
+    // Detects phase changes and switches BGM/SFX cues accordingly.
     private void UpdatePhaseAudio()
     {
         MatchPhase currentPhase = GetCurrentPhase();
@@ -240,6 +252,7 @@ public class AudioSettingsUI : MonoBehaviour
         TryPlayStartSound(previousPhase, currentPhase);
     }
 
+    // Resolves the active gameplay phase from the available game managers.
     private MatchPhase GetCurrentPhase()
     {
         if (MatchManager.Instance != null)
@@ -251,6 +264,7 @@ public class AudioSettingsUI : MonoBehaviour
         return MatchPhase.Lobby;
     }
 
+    // Swaps the managed BGM clip when the match phase requires a different track.
     private void ApplyBgmForPhase(MatchPhase phase)
     {
         if (managedBgmSource == null)
@@ -279,6 +293,7 @@ public class AudioSettingsUI : MonoBehaviour
         return GameBgmClipId.Lobby;
     }
 
+    // Uses gameplay BGM once a real networked match has started.
     private bool ShouldUseGameBgm(MatchPhase phase)
     {
         if (phase != MatchPhase.Lobby)
@@ -301,6 +316,7 @@ public class AudioSettingsUI : MonoBehaviour
         }
     }
 
+    // Plays the round-start cue only once per new round transition.
     private void TryPlayStartSound(MatchPhase previousPhase, MatchPhase currentPhase)
     {
         bool startedRound =
@@ -318,6 +334,7 @@ public class AudioSettingsUI : MonoBehaviour
         GameAudio.PlaySfx2D(GameAudioClipId.MatchStart);
     }
 
+    // Restores persisted volume values from PlayerPrefs.
     private void LoadVolumes()
     {
         bgmVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(BgmVolumeKey, 1f));
@@ -325,6 +342,7 @@ public class AudioSettingsUI : MonoBehaviour
         UpdateVolumeTexts();
     }
 
+    // Saves the BGM slider value and reapplies it to all looping scene sources.
     private void SetBgmVolume(float value)
     {
         bgmVolume = Mathf.Clamp01(value);
@@ -335,6 +353,7 @@ public class AudioSettingsUI : MonoBehaviour
         UpdateVolumeTexts();
     }
 
+    // Saves the SFX slider value and pushes it to all tracked SFX sources.
     private void SetSfxVolume(float value)
     {
         sfxVolume = Mathf.Clamp01(value);
@@ -345,12 +364,14 @@ public class AudioSettingsUI : MonoBehaviour
         UpdateVolumeTexts();
     }
 
+    // Reapplies all volume-dependent state after initialization or scene changes.
     private void ApplyAllVolumes()
     {
         ApplyBgmVolumeToScene();
         UpdateVolumeTexts();
     }
 
+    // Treats looping AudioSources as BGM and scales them against their captured base volume.
     private void ApplyBgmVolumeToScene()
     {
         AudioSource[] sources = FindObjectsByType<AudioSource>(FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -370,6 +391,7 @@ public class AudioSettingsUI : MonoBehaviour
         }
     }
 
+    // Updates the percent labels shown beside the volume sliders.
     private void UpdateVolumeTexts()
     {
         if (bgmValueText != null)
@@ -379,6 +401,7 @@ public class AudioSettingsUI : MonoBehaviour
             sfxValueText.text = $"{Mathf.RoundToInt(sfxVolume * 100f)}%";
     }
 
+    // Shows or hides the settings panel and coordinates cursor locking with GameManager.
     private void SetVisible(bool visible, bool instant = false)
     {
         bool wasOpen = isOpen;
@@ -413,6 +436,7 @@ public class AudioSettingsUI : MonoBehaviour
         }
     }
 
+    // Reinitializes transient scene references after a new scene loads.
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         EnsureEventSystem();
@@ -421,6 +445,7 @@ public class AudioSettingsUI : MonoBehaviour
         ApplyAllVolumes();
     }
 
+    // Ensures a usable EventSystem exists so the runtime-generated UI remains interactive.
     private static void EnsureEventSystem()
     {
         if (FindFirstObjectByType<EventSystem>() != null)
@@ -432,6 +457,7 @@ public class AudioSettingsUI : MonoBehaviour
         inputModule.AssignDefaultActions();
     }
 
+    // Finds the first descendant transform by exact name, including inactive objects.
     private Transform FindChild(string childName)
     {
         Transform[] children = GetComponentsInChildren<Transform>(true);
@@ -445,12 +471,14 @@ public class AudioSettingsUI : MonoBehaviour
         return null;
     }
 
+    // Finds a component on a named child beneath this object.
     private T FindChildComponent<T>(string childName) where T : Component
     {
         Transform child = FindChild(childName);
         return child != null ? child.GetComponent<T>() : null;
     }
 
+    // Finds a component on a named child beneath an arbitrary root transform.
     private static T FindChildComponent<T>(Transform root, string childName) where T : Component
     {
         foreach (T component in root.GetComponentsInChildren<T>(true))
@@ -482,6 +510,7 @@ public enum GameBgmClipId
     Game
 }
 
+// Runtime audio utility that loads clips from Resources and centralizes SFX/BGM playback behavior.
 public static class GameAudio
 {
     private const string BgmResourcePath = "Audio/JJH/BGM";
@@ -493,12 +522,14 @@ public static class GameAudio
     private static AudioSource shared2DSource;
     private static AudioClip generatedButtonClickClip;
 
+    // Returns the first available BGM clip for the requested category.
     public static AudioClip GetBgmClip(GameBgmClipId clipId = GameBgmClipId.Default)
     {
         AudioClip[] clips = GetBgmClips(clipId);
         return clips.Length > 0 ? clips[0] : null;
     }
 
+    // Pushes the latest global SFX volume to shared and positional SFX sources.
     public static void ApplySfxVolume()
     {
         if (shared2DSource != null)
@@ -517,16 +548,19 @@ public static class GameAudio
         }
     }
 
+    // Plays a cached 2D SFX by logical identifier.
     public static void PlaySfx2D(GameAudioClipId clipId, float volumeScale = 1f)
     {
         PlayClip2D(GetSfxClip(clipId), volumeScale);
     }
 
+    // Plays a cached positional SFX clip in world space.
     public static void PlaySfxAt(GameAudioClipId clipId, Vector3 position, float volumeScale = 1f, float spatialBlend = 0.75f)
     {
         PlayClipAt(GetSfxClip(clipId), position, volumeScale, spatialBlend);
     }
 
+    // Plays a raw clip through the shared 2D source.
     public static void PlayClip2D(AudioClip clip, float volumeScale = 1f)
     {
         if (clip == null)
@@ -537,6 +571,7 @@ public static class GameAudio
         source.PlayOneShot(clip, Mathf.Max(0f, volumeScale));
     }
 
+    // Spawns a short-lived AudioSource in the world to play a one-shot clip.
     public static void PlayClipAt(AudioClip clip, Vector3 position, float volumeScale = 1f, float spatialBlend = 0.75f)
     {
         if (clip == null)
@@ -560,18 +595,21 @@ public static class GameAudio
         Object.Destroy(soundObject, clip.length + 0.25f);
     }
 
+    // Tracks live SFX sources so future volume changes can be applied retroactively.
     internal static void RegisterSfxSource(GameAudioSfxSource source)
     {
         if (source != null && !activeSfxSources.Contains(source))
             activeSfxSources.Add(source);
     }
 
+    // Stops tracking destroyed or finished SFX sources.
     internal static void UnregisterSfxSource(GameAudioSfxSource source)
     {
         if (source != null)
             activeSfxSources.Remove(source);
     }
 
+    // Loads and caches BGM clips from phase-specific folders, with a root fallback.
     private static AudioClip[] GetBgmClips(GameBgmClipId clipId)
     {
         if (bgmCache.TryGetValue(clipId, out AudioClip[] cached))
@@ -598,6 +636,7 @@ public static class GameAudio
         return result;
     }
 
+    // Returns a random matching SFX clip, or a generated click when no asset exists.
     private static AudioClip GetSfxClip(GameAudioClipId clipId)
     {
         AudioClip[] clips = GetSfxClips(clipId);
@@ -612,6 +651,7 @@ public static class GameAudio
         return clips[Random.Range(0, clips.Length)];
     }
 
+    // Loads and caches SFX clips by folder name plus filename aliases from the root folder.
     private static AudioClip[] GetSfxClips(GameAudioClipId clipId)
     {
         if (sfxCache.TryGetValue(clipId, out AudioClip[] cached))
@@ -637,6 +677,7 @@ public static class GameAudio
         return result;
     }
 
+    // Creates a persistent shared 2D AudioSource used for UI and other non-positional SFX.
     private static AudioSource GetShared2DSource()
     {
         if (shared2DSource != null)
@@ -665,6 +706,7 @@ public static class GameAudio
         return Mathf.Clamp01(AudioSettingsUI.SfxVolume * Mathf.Max(0f, volumeScale));
     }
 
+    // Maps each logical clip identifier to its preferred Resources subfolder.
     private static string GetFolderName(GameAudioClipId clipId)
     {
         switch (clipId)
@@ -690,6 +732,7 @@ public static class GameAudio
         }
     }
 
+    // Allows a single logical SFX type to match multiple naming conventions on disk.
     private static string[] GetAliases(GameAudioClipId clipId)
     {
         switch (clipId)
@@ -715,6 +758,7 @@ public static class GameAudio
         }
     }
 
+    // Generates a tiny synthetic click so UI buttons still have feedback without an imported asset.
     private static AudioClip GetGeneratedButtonClickClip()
     {
         if (generatedButtonClickClip != null)
@@ -736,6 +780,7 @@ public static class GameAudio
         return generatedButtonClickClip;
     }
 
+    // Normalizes clip names before alias matching to tolerate different naming styles.
     private static bool NameMatchesAnyAlias(string clipName, string[] aliases)
     {
         string normalizedName = NormalizeName(clipName);
@@ -759,6 +804,7 @@ public static class GameAudio
             .Replace(".", "");
     }
 
+    // Deduplicates loaded clips while preserving discovery order before final sorting.
     private static void AddUniqueClips(List<AudioClip> clips, AudioClip[] candidates)
     {
         foreach (AudioClip clip in candidates)
@@ -773,17 +819,20 @@ public static class GameAudio
         clips.Add(clip);
     }
 
+    // Sorts clips deterministically so random selection is stable across repeated loads.
     private static void SortByName(AudioClip[] clips)
     {
         System.Array.Sort(clips, (a, b) => string.CompareOrdinal(a.name, b.name));
     }
 }
 
+// Small helper component that remembers the original SFX volume scale for a spawned AudioSource.
 public sealed class GameAudioSfxSource : MonoBehaviour
 {
     private AudioSource source;
     private float baseVolume = 1f;
 
+    // Captures the created AudioSource and registers it for future global volume updates.
     public void Init(AudioSource audioSource, float volumeScale)
     {
         source = audioSource;
@@ -793,6 +842,7 @@ public sealed class GameAudioSfxSource : MonoBehaviour
         ApplyVolume();
     }
 
+    // Reapplies the current global SFX volume using the stored per-source scale.
     public void ApplyVolume()
     {
         if (source != null)

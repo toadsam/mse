@@ -1,18 +1,23 @@
 using System.Text.RegularExpressions;
 using UnityEngine;
 
+// file: Assets/Scripts/JJH/Util/ErrorMessageFormatter.cs
+// Maps raw backend/auth transport errors to short user-facing messages for UI display.
 public static class ErrorMessageFormatter
 {
+    // Formats generic backend errors with the default context.
     public static string ToFriendly(string rawError)
     {
         return ToFriendly(rawError, AuthErrorContext.General);
     }
 
+    // Formats auth errors with login/signup-specific wording.
     public static string ToAuthFriendly(string rawError, bool isLogin)
     {
         return ToFriendly(rawError, isLogin ? AuthErrorContext.Login : AuthErrorContext.Signup);
     }
 
+    // Applies keyword and HTTP status heuristics to convert raw errors into player-friendly copy.
     private static string ToFriendly(string rawError, AuthErrorContext context)
     {
         if (string.IsNullOrWhiteSpace(rawError))
@@ -86,6 +91,7 @@ public static class ErrorMessageFormatter
         return GetDefaultMessage(context);
     }
 
+    // Extracts the leading HTTP status from errors shaped like "HTTP 401: ...".
     private static int ExtractHttpStatus(string rawError)
     {
         Match match = Regex.Match(rawError, @"^HTTP\s+(\d{3})");
@@ -95,6 +101,7 @@ public static class ErrorMessageFormatter
         return int.TryParse(match.Groups[1].Value, out int statusCode) ? statusCode : -1;
     }
 
+    // Utility matcher for a case-normalized error string against multiple phrases.
     private static bool ContainsAny(string value, params string[] patterns)
     {
         foreach (string pattern in patterns)
@@ -106,6 +113,7 @@ public static class ErrorMessageFormatter
         return false;
     }
 
+    // Fallback message when no more specific backend error pattern matched.
     private static string GetDefaultMessage(AuthErrorContext context)
     {
         switch (context)

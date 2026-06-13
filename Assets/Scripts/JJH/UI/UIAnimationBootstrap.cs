@@ -3,10 +3,13 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
+// file: Assets/Scripts/JJH/UI/UIAnimationBootstrap.cs
+// Persistent installer that keeps shared button animations attached across scene transitions.
 public class UIAnimationBootstrap : MonoBehaviour
 {
     private static UIAnimationBootstrap instance;
 
+    // Creates the bootstrapper before scene load so buttons can be decorated immediately.
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void EnsureInstance()
     {
@@ -18,6 +21,7 @@ public class UIAnimationBootstrap : MonoBehaviour
         instance = obj.AddComponent<UIAnimationBootstrap>();
     }
 
+    // Installs the standard button animator except for augment selection UI, which manages its own state.
     public static void InstallButton(Button button)
     {
         if (button != null && button.GetComponentInParent<AugmentSelectionUI>(true) != null)
@@ -32,6 +36,7 @@ public class UIAnimationBootstrap : MonoBehaviour
         UIButtonAnimator.Ensure(button);
     }
 
+    // Installs button animators for every child button beneath a root object.
     public static void InstallButtonsIn(GameObject root)
     {
         if (root == null)
@@ -42,6 +47,7 @@ public class UIAnimationBootstrap : MonoBehaviour
             InstallButton(button);
     }
 
+    // Scans all loaded scenes and attaches animators to every eligible button.
     public static void InstallAllButtons()
     {
         Button[] buttons = FindObjectsByType<Button>(FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -77,6 +83,7 @@ public class UIAnimationBootstrap : MonoBehaviour
         InstallAllButtons();
     }
 
+    // Periodically rescans because some runtime UI is created after scene load.
     private IEnumerator InstallLoop()
     {
         while (true)

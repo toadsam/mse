@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 
+// file: Assets/Scripts/JJH/Backend/BackendModels.cs
+// Serializable request/response DTOs shared by the Unity backend integration layer.
 [Serializable]
 public class BackendApiResponse<T>
 {
@@ -12,6 +14,7 @@ public class BackendApiResponse<T>
 [Serializable]
 public class SignupRequest
 {
+    // Uses email as the backend login identifier.
     public string email;
     public string password;
     public string nickname;
@@ -63,6 +66,7 @@ public class MatchResultRequest
     public long winnerId;
     public int player1Score;
     public int player2Score;
+    // The backend expects exactly two per-player result entries for a completed 1v1 match.
     public List<MatchPlayerResultRequest> players;
 }
 
@@ -80,6 +84,7 @@ public class MatchPlayerResultRequest
 [Serializable]
 public class MatchPlayerAugmentRequest
 {
+    // Optional backend augment identifier; 0 can be used when only the name is known.
     public long augmentId;
     public string augmentName;
     public int selectedOrder;

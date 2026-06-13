@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
+// file: Assets/Scripts/JJH/Backend/MatchResultService.cs
+// Singleton service for validating, submitting, and loading match result history.
 public class MatchResultService : MonoBehaviour
 {
     public static MatchResultService Instance { get; private set; }
@@ -15,6 +17,7 @@ public class MatchResultService : MonoBehaviour
     public bool IsSaving { get; private set; }
     public string LastError { get; private set; }
 
+    // Auto-creates a persistent singleton before game systems attempt to report results.
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void EnsureInstance()
     {
@@ -38,11 +41,13 @@ public class MatchResultService : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
+    // Convenience overload for callers that only have primitive 1v1 result values.
     public void SaveResult(long player1Id, long player2Id, long winnerId, int player1Score, int player2Score)
     {
         SaveResult(CreateBasicRequest(player1Id, player2Id, winnerId, player1Score, player2Score));
     }
 
+    // Saves a prepared request while still raising the standard service events.
     public void SaveResult(MatchResultRequest request)
     {
         SaveResult(request, null, null);
@@ -50,6 +55,8 @@ public class MatchResultService : MonoBehaviour
 
     // 저장 성공/실패 콜백을 함께 받는 오버로드. (결과 화면 흐름에서 사용)
     // 이벤트(SaveSucceeded/SaveFailed)도 그대로 발생한다.
+    // Overload that also forwards success/failure callbacks for one-off result screen flows.
+    // The standard SaveSucceeded/SaveFailed events are still raised for shared listeners.
     public void SaveResult(MatchResultRequest request, Action<MatchResponse> onSuccess, Action<string> onError)
     {
         if (BackendApiClient.Instance == null)
@@ -82,6 +89,7 @@ public class MatchResultService : MonoBehaviour
         }, message => FailSave(message, onError));
     }
 
+    // Loads paginated match history for the currently authenticated user.
     public void LoadMyHistory(int page = 0, int size = 20)
     {
         if (BackendApiClient.Instance == null)
@@ -103,6 +111,7 @@ public class MatchResultService : MonoBehaviour
         }, FailHistory);
     }
 
+    // Validates the minimal match fields expected by the backend before submission.
     private bool ValidateResult(MatchResultRequest request, Action<string> onError = null)
     {
         if (request == null)
@@ -134,6 +143,7 @@ public class MatchResultService : MonoBehaviour
         return true;
     }
 
+    // Shared save failure path for both service events and per-call error callbacks.
     private void FailSave(string message, Action<string> onError)
     {
         IsSaving = false;
@@ -142,6 +152,7 @@ public class MatchResultService : MonoBehaviour
         onError?.Invoke(message);
     }
 
+    // Creates a default 1v1 backend request and populates the required per-player payload.
     public static MatchResultRequest CreateBasicRequest(long player1Id, long player2Id, long winnerId, int player1Score, int player2Score)
     {
         MatchResultRequest request = new MatchResultRequest
@@ -157,6 +168,7 @@ public class MatchResultService : MonoBehaviour
         return request;
     }
 
+    // Ensures the backend request contains exactly two player result entries.
     public static void EnsurePlayerPayload(MatchResultRequest request)
     {
         if (request == null)
@@ -172,6 +184,7 @@ public class MatchResultService : MonoBehaviour
         };
     }
 
+    // Creates the default per-player payload when no richer combat data is available.
     private static MatchPlayerResultRequest CreatePlayerResult(long userId, bool isWinner, int score)
     {
         return new MatchPlayerResultRequest
@@ -192,6 +205,7 @@ public class MatchResultService : MonoBehaviour
         SaveFailed?.Invoke(message);
     }
 
+    // Shared history failure path for UI listeners.
     private void FailHistory(string message)
     {
         LastError = message;

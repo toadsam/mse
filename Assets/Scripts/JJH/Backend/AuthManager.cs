@@ -1,6 +1,8 @@
 using System;
 using UnityEngine;
 
+// file: Assets/Scripts/JJH/Backend/AuthManager.cs
+// Singleton coordinator for backend signup, login, refresh, profile loading, and logout flows.
 public class AuthManager : MonoBehaviour
 {
     public static AuthManager Instance { get; private set; }
@@ -20,6 +22,7 @@ public class AuthManager : MonoBehaviour
     public string CurrentEmail => BackendSession.Email;
     public string CurrentNickname => BackendSession.Nickname;
 
+    // Auto-creates a persistent singleton before scene code attempts auth operations.
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void EnsureInstance()
     {
@@ -43,6 +46,7 @@ public class AuthManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
+    // Starts signup after validating that the local client is ready and inputs are present.
     public void Signup(string email, string password, string nickname)
     {
         if (!CanStartRequest())
@@ -65,6 +69,7 @@ public class AuthManager : MonoBehaviour
         }, Fail);
     }
 
+    // Starts login after validating that the local client is ready and inputs are present.
     public void Login(string email, string password)
     {
         if (!CanStartRequest())
@@ -86,6 +91,7 @@ public class AuthManager : MonoBehaviour
         }, Fail);
     }
 
+    // Requests a new access token using the locally stored refresh token.
     public void Refresh()
     {
         if (!CanStartRequest())
@@ -106,6 +112,7 @@ public class AuthManager : MonoBehaviour
         }, Fail);
     }
 
+    // Loads the currently authenticated user's profile from the backend.
     public void LoadMe()
     {
         if (!CanStartRequest())
@@ -123,6 +130,7 @@ public class AuthManager : MonoBehaviour
         }, Fail);
     }
 
+    // Updates the logged-in user's nickname on the backend.
     public void UpdateNickname(string nickname)
     {
         if (!CanStartRequest())
@@ -146,6 +154,7 @@ public class AuthManager : MonoBehaviour
         }, Fail);
     }
 
+    // Clears the local session without calling a backend logout endpoint.
     public void Logout()
     {
         BackendSession.Clear();
@@ -154,6 +163,7 @@ public class AuthManager : MonoBehaviour
         LoggedOut?.Invoke();
     }
 
+    // Guards against missing client initialization and overlapping auth requests.
     private bool CanStartRequest()
     {
         if (BackendApiClient.Instance == null)
@@ -171,6 +181,7 @@ public class AuthManager : MonoBehaviour
         return true;
     }
 
+    // Ensures endpoints that require auth are only called with a valid local session.
     private bool RequireLogin()
     {
         if (BackendSession.IsLoggedIn)
@@ -180,6 +191,7 @@ public class AuthManager : MonoBehaviour
         return false;
     }
 
+    // Performs basic client-side validation before sending auth requests to the backend.
     private bool ValidateAuthInput(string email, string password, bool needsNickname, string nickname)
     {
         if (string.IsNullOrWhiteSpace(email))
@@ -203,6 +215,7 @@ public class AuthManager : MonoBehaviour
         return true;
     }
 
+    // Centralizes auth failure handling so busy state and the last error stay in sync.
     private void Fail(string message)
     {
         IsBusy = false;

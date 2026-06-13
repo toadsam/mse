@@ -3,6 +3,8 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+// file: Assets/Scripts/JJH/UI/ProfileAuthUI.cs
+// Login/signup panel that delegates backend auth to AuthManager and presents popup feedback.
 public class ProfileAuthUI : MonoBehaviour
 {
     [Header("Auth Input")]
@@ -28,6 +30,7 @@ public class ProfileAuthUI : MonoBehaviour
     private UIPanelAnimator _popupAnimator;
     private UIPanelAnimator _popupBoxAnimator;
 
+    // Wires button events and resolves the popup hierarchy used for auth feedback.
     private void Awake()
     {
         if (loginButton != null)
@@ -44,6 +47,7 @@ public class ProfileAuthUI : MonoBehaviour
         HidePopup(true);
     }
 
+    // Finds popup sub-objects and installs standard panel/button animations.
     private void ResolvePopupRefs()
     {
         Transform popupT = popupPanel != null ? popupPanel.transform : FindAuthPopupPanel();
@@ -72,6 +76,7 @@ public class ProfileAuthUI : MonoBehaviour
         UIAnimationBootstrap.InstallButtonsIn(popupPanel);
     }
 
+    // Searches all canvases for the shared auth popup when it is not assigned in the inspector.
     private Transform FindAuthPopupPanel()
     {
         Canvas[] canvases = FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -86,6 +91,7 @@ public class ProfileAuthUI : MonoBehaviour
         return null;
     }
 
+    // Subscribes to auth events so UI state tracks backend responses.
     private void OnEnable()
     {
         if (AuthManager.Instance == null) return;
@@ -94,6 +100,7 @@ public class ProfileAuthUI : MonoBehaviour
         AuthManager.Instance.AuthFailed      += OnAuthFailed;
     }
 
+    // Unsubscribes from auth events to avoid duplicate popup handling.
     private void OnDisable()
     {
         if (AuthManager.Instance == null) return;
@@ -102,6 +109,7 @@ public class ProfileAuthUI : MonoBehaviour
         AuthManager.Instance.AuthFailed      -= OnAuthFailed;
     }
 
+    // Starts a login request using the current input values.
     private void OnLoginClicked()
     {
         if (emailInput == null || passwordInput == null) return;
@@ -110,6 +118,7 @@ public class ProfileAuthUI : MonoBehaviour
         AuthManager.Instance.Login(emailInput.text, passwordInput.text);
     }
 
+    // Uses the entered ID as both email and nickname for the current lightweight signup flow.
     private void OnSignUpClicked()
     {
         if (emailInput == null || passwordInput == null) return;
@@ -119,6 +128,7 @@ public class ProfileAuthUI : MonoBehaviour
         AuthManager.Instance.Signup(userId, passwordInput.text, userId);
     }
 
+    // Shows the success popup and signals that the caller can proceed after confirmation.
     private void OnLoginSucceeded(AuthResponse auth)
     {
         SetStatus(string.Empty);
@@ -126,6 +136,7 @@ public class ProfileAuthUI : MonoBehaviour
         ShowPopup("User verified.", proceed: true);
     }
 
+    // Reuses the same success UX for signup as for login.
     private void OnSignupSucceeded(AuthResponse auth)
     {
         SetStatus(string.Empty);
@@ -133,6 +144,7 @@ public class ProfileAuthUI : MonoBehaviour
         ShowPopup("User verified.", proceed: true);
     }
 
+    // Converts raw backend/auth errors into player-friendly popup copy.
     private void OnAuthFailed(string error)
     {
         SetStatus(string.Empty);
@@ -140,6 +152,7 @@ public class ProfileAuthUI : MonoBehaviour
         ShowPopup(ErrorMessageFormatter.ToAuthFriendly(error, _lastActionWasLogin), proceed: false);
     }
 
+    // Opens the popup and optionally marks it as a gate before proceeding.
     private void ShowPopup(string message, bool proceed)
     {
         if (popupPanel == null || popupMessageText == null || _popupAnimator == null)
@@ -163,6 +176,7 @@ public class ProfileAuthUI : MonoBehaviour
         }
     }
 
+    // Hides the popup and clears any pending proceed state.
     private void HidePopup(bool instant = false)
     {
         if (_popupBoxAnimator != null)
@@ -176,6 +190,7 @@ public class ProfileAuthUI : MonoBehaviour
         _pendingProceed = false;
     }
 
+    // Advances only after success popups; failure popups simply dismiss.
     private void OnPopupOkClicked()
     {
         bool shouldProceed = _pendingProceed;
@@ -184,6 +199,7 @@ public class ProfileAuthUI : MonoBehaviour
             OnProceedRequested?.Invoke();
     }
 
+    // Updates the inline status label used during request submission.
     private void SetStatus(string message)
     {
         if (statusText != null)

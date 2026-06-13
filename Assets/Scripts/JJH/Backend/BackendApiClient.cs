@@ -5,6 +5,8 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
 
+// file: Assets/Scripts/JJH/Backend/BackendApiClient.cs
+// Persistent HTTP client for backend auth, profile, match, leaderboard, and augment requests.
 public class BackendApiClient : MonoBehaviour
 {
     private const string DefaultBaseUrl = "http://15.164.171.132:8080";
@@ -21,12 +23,14 @@ public class BackendApiClient : MonoBehaviour
         get => baseUrl;
         set
         {
+            // Persist the normalized base URL so test/dev overrides survive scene reloads.
             baseUrl = NormalizeBaseUrl(value);
             PlayerPrefs.SetString(BaseUrlKey, baseUrl);
             PlayerPrefs.Save();
         }
     }
 
+    // Auto-creates a singleton instance before any scene code attempts to call the backend.
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void EnsureInstance()
     {
@@ -56,6 +60,7 @@ public class BackendApiClient : MonoBehaviour
             BaseUrl = savedBaseUrl;
     }
 
+    // Creates a new backend account and stores the issued session tokens locally.
     public Coroutine Signup(SignupRequest request, Action<AuthResponse> onSuccess, Action<string> onError)
     {
         return StartCoroutine(Post<SignupRequest, AuthResponse>("/api/auth/signup", request, false, response =>
@@ -65,6 +70,7 @@ public class BackendApiClient : MonoBehaviour
         }, onError));
     }
 
+    // Authenticates an existing user and refreshes the local backend session state.
     public Coroutine Login(LoginRequest request, Action<AuthResponse> onSuccess, Action<string> onError)
     {
         return StartCoroutine(Post<LoginRequest, AuthResponse>("/api/auth/login", request, false, response =>
@@ -74,6 +80,7 @@ public class BackendApiClient : MonoBehaviour
         }, onError));
     }
 
+    // Exchanges the stored refresh token for a fresh access token pair.
     public Coroutine Refresh(Action<AuthResponse> onSuccess, Action<string> onError)
     {
         RefreshRequest request = new RefreshRequest { refreshToken = BackendSession.RefreshToken };
@@ -85,6 +92,7 @@ public class BackendApiClient : MonoBehaviour
         }, onError));
     }
 
+    // Loads the currently authenticated user's profile and syncs it into BackendSession.
     public Coroutine GetMe(Action<UserMeResponse> onSuccess, Action<string> onError)
     {
         return StartCoroutine(Get<UserMeResponse>("/api/user/me", true, response =>
@@ -94,6 +102,7 @@ public class BackendApiClient : MonoBehaviour
         }, onError));
     }
 
+    // Updates mutable user profile fields on the backend and stores the returned profile.
     public Coroutine UpdateUser(UserUpdateRequest request, Action<UserMeResponse> onSuccess, Action<string> onError)
     {
         return StartCoroutine(Put<UserUpdateRequest, UserMeResponse>("/api/user/update", request, true, response =>
@@ -103,27 +112,32 @@ public class BackendApiClient : MonoBehaviour
         }, onError));
     }
 
+    // Sends a completed match result payload for persistence.
     public Coroutine SaveMatchResult(MatchResultRequest request, Action<MatchResponse> onSuccess, Action<string> onError)
     {
         return StartCoroutine(Post<MatchResultRequest, MatchResponse>("/api/match/result", request, true, response => onSuccess?.Invoke(response.data), onError));
     }
 
+    // Requests paginated match history for the signed-in user.
     public Coroutine GetMatchHistory(int page, int size, Action<MatchHistoryResponse> onSuccess, Action<string> onError)
     {
         string path = $"/api/match/history?page={Mathf.Max(0, page)}&size={Mathf.Max(1, size)}";
         return StartCoroutine(Get<MatchHistoryResponse>(path, true, response => onSuccess?.Invoke(response.data), onError));
     }
 
+    // Loads the public leaderboard without requiring authentication.
     public Coroutine GetLeaderboard(Action<List<LeaderboardEntry>> onSuccess, Action<string> onError)
     {
         return StartCoroutine(Get<List<LeaderboardEntry>>("/api/leaderboard", false, response => onSuccess?.Invoke(response.data), onError));
     }
 
+    // Loads the public augment catalog without requiring authentication.
     public Coroutine GetAugments(Action<List<AugmentResponse>> onSuccess, Action<string> onError)
     {
         return StartCoroutine(Get<List<AugmentResponse>>("/api/augments", false, response => onSuccess?.Invoke(response.data), onError));
     }
 
+    // Shared GET helper used by read-only endpoints.
     private IEnumerator Get<T>(string path, bool auth, Action<BackendApiResponse<T>> onSuccess, Action<string> onError)
     {
         using (UnityWebRequest request = UnityWebRequest.Get(BuildUrl(path)))
@@ -132,6 +146,7 @@ public class BackendApiClient : MonoBehaviour
         }
     }
 
+    // Shared POST helper that JSON-serializes the request body.
     private IEnumerator Post<TRequest, TResponse>(string path, TRequest body, bool auth, Action<BackendApiResponse<TResponse>> onSuccess, Action<string> onError)
     {
         using (UnityWebRequest request = BuildJsonRequest(BuildUrl(path), "POST", body))
@@ -140,6 +155,7 @@ public class BackendApiClient : MonoBehaviour
         }
     }
 
+    // Shared PUT helper for profile updates.
     private IEnumerator Put<TRequest, TResponse>(string path, TRequest body, bool auth, Action<BackendApiResponse<TResponse>> onSuccess, Action<string> onError)
     {
         using (UnityWebRequest request = BuildJsonRequest(BuildUrl(path), "PUT", body))
@@ -148,6 +164,7 @@ public class BackendApiClient : MonoBehaviour
         }
     }
 
+    // Applies headers, sends the request, and normalizes backend API success/error handling.
     private IEnumerator Send<T>(UnityWebRequest request, bool auth, Action<BackendApiResponse<T>> onSuccess, Action<string> onError)
     {
         request.timeout = timeoutSeconds;
@@ -192,6 +209,7 @@ public class BackendApiClient : MonoBehaviour
         onSuccess?.Invoke(response);
     }
 
+    // Builds a JSON request manually because UnityWebRequest has no generic typed body helper.
     private UnityWebRequest BuildJsonRequest<T>(string url, string method, T body)
     {
         string json = body != null ? JsonUtility.ToJson(body) : "{}";
@@ -207,6 +225,7 @@ public class BackendApiClient : MonoBehaviour
         return request;
     }
 
+    // Combines the configured base URL with an API-relative path.
     private string BuildUrl(string path)
     {
         string normalizedBase = NormalizeBaseUrl(baseUrl);
@@ -214,11 +233,13 @@ public class BackendApiClient : MonoBehaviour
         return normalizedBase + normalizedPath;
     }
 
+    // Removes trailing slashes and falls back to the production default when empty.
     private static string NormalizeBaseUrl(string value)
     {
         return string.IsNullOrWhiteSpace(value) ? DefaultBaseUrl : value.TrimEnd('/');
     }
 
+    // Prefers the backend's structured error payload and falls back to raw transport details.
     private string FormatError(long status, string requestError, string body)
     {
         if (!string.IsNullOrWhiteSpace(body))

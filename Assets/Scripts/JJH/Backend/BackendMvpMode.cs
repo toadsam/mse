@@ -1,6 +1,8 @@
 using System.Text;
 using UnityEngine;
 
+// file: Assets/Scripts/JJH/Backend/BackendMvpMode.cs
+// In-game debug panel for manually testing backend auth, profile, catalog, and match flows.
 public class BackendMvpMode : MonoBehaviour
 {
     private const int WindowId = 8081;
@@ -28,6 +30,7 @@ public class BackendMvpMode : MonoBehaviour
     private string player2Score = "1";
     private string log = "애들아 안녕! 나는 정재훈이야..지금 시간나서 만들고 있어!!! 이거 꽤 어렵다\n\n백엔드 MVP 패널 준비됨\n1. 백엔드 서버를 켠다\n2. 서버 주소 적용\n3. 회원가입 또는 로그인\n4. 조회/저장 버튼 테스트\n\nF8 또는 오른쪽 위 닫기 버튼: 패널 숨기기/보이기";
 
+    // Spawns the debug overlay automatically after scenes load so it is always available in play mode.
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void EnsureInstance()
     {
@@ -39,6 +42,7 @@ public class BackendMvpMode : MonoBehaviour
         obj.AddComponent<BackendMvpMode>();
     }
 
+    // Seeds the panel fields from the current backend session when available.
     private void Start()
     {
         if (BackendApiClient.Instance != null)
@@ -60,12 +64,14 @@ public class BackendMvpMode : MonoBehaviour
         }
     }
 
+    // Toggles the MVP debug overlay with F8.
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.F8))
             ToggleVisible();
     }
 
+    // Subscribes to backend service events while the overlay is active.
     private void OnEnable()
     {
         if (AuthManager.Instance != null)
@@ -96,6 +102,7 @@ public class BackendMvpMode : MonoBehaviour
         }
     }
 
+    // Unsubscribes from backend service events to avoid duplicate handlers.
     private void OnDisable()
     {
         if (AuthManager.Instance != null)
@@ -126,6 +133,7 @@ public class BackendMvpMode : MonoBehaviour
         }
     }
 
+    // Renders the debug window only when the overlay is visible.
     private void OnGUI()
     {
         if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.F8)
@@ -141,6 +149,7 @@ public class BackendMvpMode : MonoBehaviour
         windowRect = GUI.Window(WindowId, windowRect, DrawWindow, "백엔드 연결 테스트");
     }
 
+    // Draws the full test panel UI for auth, data lookup, and manual match submission.
     private void DrawWindow(int id)
     {
         scroll = GUILayout.BeginScrollView(scroll, GUILayout.Width(500f), GUILayout.Height(650f));
@@ -260,6 +269,7 @@ public class BackendMvpMode : MonoBehaviour
         GUI.DragWindow();
     }
 
+    // Lazily creates GUI styles so the debug window has consistent formatting.
     private void BuildStyles()
     {
         if (titleStyle == null)
@@ -326,6 +336,7 @@ public class BackendMvpMode : MonoBehaviour
         GUILayout.Label(text, GUILayout.Width(58f));
     }
 
+    // Displays the current login/session state at the top of the panel.
     private void DrawLoginStatus()
     {
         if (BackendSession.IsLoggedIn)
@@ -334,6 +345,7 @@ public class BackendMvpMode : MonoBehaviour
             GUILayout.Label("로그인 상태: 아직 로그인 안 됨", badStyle);
     }
 
+    // Prevents double toggles when both Update and OnGUI receive the same F8 press.
     private void ToggleVisible()
     {
         if (lastToggleFrame == Time.frameCount)
@@ -358,6 +370,7 @@ public class BackendMvpMode : MonoBehaviour
         AuthManager.Instance.Refresh();
     }
 
+    // Uses augment loading as a lightweight connectivity check against the backend.
     private void PingServer()
     {
         BackendDataService.Instance.LoadAugments();
@@ -396,6 +409,7 @@ public class BackendMvpMode : MonoBehaviour
         MatchResultService.Instance.LoadMyHistory();
     }
 
+    // Validates the manual match form and converts it into a backend request DTO.
     private bool TryReadMatch(out MatchResultRequest request)
     {
         request = null;
@@ -433,6 +447,7 @@ public class BackendMvpMode : MonoBehaviour
         return true;
     }
 
+    // Copies the logged-in user's backend ID into the player 1 field for quick testing.
     private void FillMyIdAsPlayer1()
     {
         if (!BackendSession.IsLoggedIn)
@@ -445,6 +460,7 @@ public class BackendMvpMode : MonoBehaviour
         AppendLog("1P ID 자동 입력", $"1P ID에 내 유저 번호 {player1Id}를 넣었어.");
     }
 
+    // Copies the logged-in user's backend ID into the winner field for quick testing.
     private void FillMyIdAsWinner()
     {
         if (!BackendSession.IsLoggedIn)
@@ -457,6 +473,7 @@ public class BackendMvpMode : MonoBehaviour
         AppendLog("승자 ID 자동 입력", $"승자 ID에 내 유저 번호 {winnerId}를 넣었어.");
     }
 
+    // Applies a canned winner/score combination to speed up repeated manual test runs.
     private void FillWinner(bool player1Wins)
     {
         winnerId = player1Wins ? player1Id : player2Id;
@@ -465,6 +482,7 @@ public class BackendMvpMode : MonoBehaviour
         AppendLog("매치 예시 입력", player1Wins ? "1P 승리 예시를 넣었어." : "2P 승리 예시를 넣었어.");
     }
 
+    // Keeps the panel's editable fields aligned with the latest auth response.
     private void SyncUserFields(AuthResponse auth)
     {
         if (auth == null)
@@ -556,6 +574,7 @@ public class BackendMvpMode : MonoBehaviour
         AppendLog("오류", message);
     }
 
+    // Prepends a timestamped entry so the newest backend activity stays visible at the top.
     private void AppendLog(string title, string message)
     {
         log = $"[{System.DateTime.Now:HH:mm:ss}] {title}\n{message}\n\n{log}";

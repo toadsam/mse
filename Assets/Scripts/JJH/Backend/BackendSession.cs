@@ -1,5 +1,7 @@
 using UnityEngine;
 
+// file: Assets/Scripts/JJH/Backend/BackendSession.cs
+// Static session store backed by PlayerPrefs for backend tokens and user identity data.
 public static class BackendSession
 {
     private const string AccessTokenKey = "LastRound.AccessToken";
@@ -16,11 +18,13 @@ public static class BackendSession
 
     public static bool IsLoggedIn => !string.IsNullOrWhiteSpace(AccessToken) && UserId > 0;
 
+    // Loads any previously saved backend session as soon as the type is first touched.
     static BackendSession()
     {
         Load();
     }
 
+    // Saves the latest auth response so login state survives scene reloads and app restarts.
     public static void Save(AuthResponse auth)
     {
         if (auth == null)
@@ -40,6 +44,7 @@ public static class BackendSession
         PlayerPrefs.Save();
     }
 
+    // Updates profile fields that may change after login, such as nickname.
     public static void UpdateUser(UserMeResponse user)
     {
         if (user == null)
@@ -55,6 +60,7 @@ public static class BackendSession
         PlayerPrefs.Save();
     }
 
+    // Clears all locally cached backend auth and profile state.
     public static void Clear()
     {
         AccessToken = string.Empty;
@@ -71,6 +77,7 @@ public static class BackendSession
         PlayerPrefs.Save();
     }
 
+    // Reads persisted session data from PlayerPrefs on startup.
     private static void Load()
     {
         AccessToken = PlayerPrefs.GetString(AccessTokenKey, string.Empty);

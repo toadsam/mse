@@ -2,6 +2,8 @@ using System;
 using System.Collections;
 using UnityEngine;
 
+// file: Assets/Scripts/JJH/UI/UIPanelAnimator.cs
+// Reusable panel animator for fade/slide/scale transitions plus shake and punch emphasis.
 public class UIPanelAnimator : MonoBehaviour
 {
     [SerializeField] private float showDuration = 0.16f;
@@ -18,6 +20,7 @@ public class UIPanelAnimator : MonoBehaviour
     private Vector3 baseScale;
     private bool hasBaseTransform;
 
+    // Ensures the target object has a panel animator and captures its designed base transform.
     public static UIPanelAnimator Ensure(GameObject target)
     {
         if (target == null)
@@ -31,6 +34,7 @@ public class UIPanelAnimator : MonoBehaviour
         return animator;
     }
 
+    // Overrides the hidden-state offset/scale and transition durations for a specific panel.
     public void Configure(Vector2 offset, float scale, float showSeconds = 0.16f, float hideSeconds = 0.1f)
     {
         hiddenOffset = offset;
@@ -39,12 +43,14 @@ public class UIPanelAnimator : MonoBehaviour
         hideDuration = Mathf.Max(0.01f, hideSeconds);
     }
 
+    // Re-captures the current transform as the new animation baseline.
     public void ResetBaseTransform()
     {
         hasBaseTransform = false;
         CaptureBaseTransform();
     }
 
+    // Shows the panel with optional delay or immediately when requested.
     public void Show(bool instant = false, float delay = 0f)
     {
         CaptureBaseTransform();
@@ -62,6 +68,7 @@ public class UIPanelAnimator : MonoBehaviour
         animationRoutine = StartCoroutine(AnimateTo(1f, showDuration, false, delay));
     }
 
+    // Hides the panel and optionally deactivates it after the transition.
     public void Hide(bool instant = false)
     {
         CaptureBaseTransform();
@@ -79,6 +86,7 @@ public class UIPanelAnimator : MonoBehaviour
         animationRoutine = StartCoroutine(AnimateTo(0f, hideDuration, true, 0f));
     }
 
+    // Applies a short horizontal shake, typically for validation or error feedback.
     public void Shake(float duration = 0.18f, float strength = 8f, float delay = 0f)
     {
         CaptureBaseTransform();
@@ -92,6 +100,7 @@ public class UIPanelAnimator : MonoBehaviour
         shakeRoutine = StartCoroutine(ShakeRoutine(duration, strength, delay));
     }
 
+    // Temporarily scales the panel up and back down to emphasize success or focus.
     public void Punch(float scale = 1.08f, float duration = 0.18f, float delay = 0f)
     {
         CaptureBaseTransform();
@@ -102,6 +111,7 @@ public class UIPanelAnimator : MonoBehaviour
         punchRoutine = StartCoroutine(PunchRoutine(scale, duration, delay));
     }
 
+    // Drives the main show/hide animation by interpolating toward the target visibility state.
     private IEnumerator AnimateTo(float target, float duration, bool deactivateOnEnd, float delay)
     {
         if (delay > 0f)
@@ -130,6 +140,7 @@ public class UIPanelAnimator : MonoBehaviour
         animationRoutine = null;
     }
 
+    // Applies a decaying side-to-side offset around the panel's captured base position.
     private IEnumerator ShakeRoutine(float duration, float strength, float delay)
     {
         if (delay > 0f)
@@ -151,6 +162,7 @@ public class UIPanelAnimator : MonoBehaviour
         shakeRoutine = null;
     }
 
+    // Plays a scale punch from the current size to the emphasized peak and back.
     private IEnumerator PunchRoutine(float scale, float duration, float delay)
     {
         if (delay > 0f)
@@ -167,6 +179,7 @@ public class UIPanelAnimator : MonoBehaviour
         punchRoutine = null;
     }
 
+    // Shared scale interpolation helper used by punch animations.
     private IEnumerator ScaleOverTime(Vector3 from, Vector3 to, float duration)
     {
         float elapsed = 0f;
@@ -180,6 +193,7 @@ public class UIPanelAnimator : MonoBehaviour
         }
     }
 
+    // Converts a normalized visible value into canvas alpha, raycast state, position, and scale.
     private void ApplyState(float visible, bool interactive)
     {
         if (canvasGroup != null)
@@ -195,6 +209,7 @@ public class UIPanelAnimator : MonoBehaviour
         transform.localScale = Vector3.LerpUnclamped(baseScale * hiddenScale, baseScale, visible);
     }
 
+    // Captures the designed base position/scale once so animations can return to it precisely.
     private void CaptureBaseTransform()
     {
         if (canvasGroup == null)
