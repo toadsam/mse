@@ -2,20 +2,24 @@ using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
+// Throwable item variants supported by the shared projectile prefab.
 public enum ThrowableItemKind : byte
 {
     Grenade = 0,
     SmokeBomb = 1
 }
 
+// Networked projectile used by grenade and smoke bomb active items.
 public class ThrowableItemProjectile : NetworkBehaviour
 {
     [Header("Collision")]
+    // Collision radius and masks for item impact and damage detection.
     [SerializeField] private float radius = 0.18f;
     [SerializeField] private LayerMask collisionMask = ~0;
     [SerializeField] private LayerMask damageMask = ~0;
 
     [Header("Movement")]
+    // Initial arc movement values and fuse duration.
     [SerializeField] private float horizontalSpeed = 13f;
     [SerializeField] private float upwardSpeed = 6f;
     [SerializeField] private float gravity = -18f;
@@ -33,6 +37,7 @@ public class ThrowableItemProjectile : NetworkBehaviour
     [SerializeField] private GameObject grenadeVisualRoot;
     [SerializeField] private GameObject smokeVisualRoot;
 
+    // Networked item kind used to choose visuals and impact behavior.
     [Networked] private ThrowableItemKind KindNet { get; set; }
 
     private Vector3 velocity;
@@ -43,6 +48,7 @@ public class ThrowableItemProjectile : NetworkBehaviour
     private NetworkPrefabRef explosionFxPrefab;
     private NetworkPrefabRef smokeZonePrefab;
 
+    // Initializes owner, item kind, throw velocity, fuse timer, and spawned effect prefabs.
     public void Init(
         NetworkRunner runner,
         PlayerNetwork owner,
@@ -92,6 +98,7 @@ public class ThrowableItemProjectile : NetworkBehaviour
         ApplyVisual();
     }
 
+    // Simulates projectile arc movement and fuse impact on the state authority.
     public override void FixedUpdateNetwork()
     {
         if (!HasStateAuthority)
@@ -123,6 +130,7 @@ public class ThrowableItemProjectile : NetworkBehaviour
             transform.rotation = Quaternion.LookRotation(velocity.normalized);
     }
 
+    // Sphere casts the throw path and ignores the owner immediately after throw.
     private bool CheckCollision(Vector3 from, Vector3 to, out Vector3 hitPoint)
     {
         hitPoint = to;
@@ -149,7 +157,7 @@ public class ThrowableItemProjectile : NetworkBehaviour
 
         PlayerNetwork hitPlayer = hit.collider.GetComponentInParent<PlayerNetwork>();
 
-        // 던진 직후 자신의 콜라이더를 치는 경우 방지
+        // Prevent the projectile from immediately colliding with its owner.
         if (hitPlayer != null &&
             hitPlayer.Object != null &&
             hitPlayer.Object.Id == ownerId)
@@ -161,6 +169,7 @@ public class ThrowableItemProjectile : NetworkBehaviour
         return true;
     }
 
+    // Runs grenade explosion or smoke spawn, then despawns the projectile.
     private void ExecuteImpact(Vector3 center)
     {
         switch (KindNet)
@@ -178,6 +187,7 @@ public class ThrowableItemProjectile : NetworkBehaviour
         Runner.Despawn(Object);
     }
 
+    // Applies grenade area damage once per player or dummy target.
     private void ApplyExplosionDamage(Vector3 center)
     {
         Collider[] hits = Physics.OverlapSphere(
@@ -248,6 +258,7 @@ public class ThrowableItemProjectile : NetworkBehaviour
         );
     }
 
+    // Spawns the networked smoke zone with configured radius and duration.
     private void SpawnSmokeZone(Vector3 position)
     {
         if (!smokeZonePrefab.IsValid)

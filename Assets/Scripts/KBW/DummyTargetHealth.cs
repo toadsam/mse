@@ -1,17 +1,21 @@
 using UnityEngine;
 
+// Simple test target used to verify projectile and damage behavior.
 public class DummyTargetHealth : MonoBehaviour
 {
     [Header("Health")]
+    // Test target health values configured in the Inspector.
     [SerializeField] private int maxHealth = 10000;
     [SerializeField] private bool resetWhenDead = true;
 
+    // Renderer and colors used for a short hit flash.
     [Header("Hit Reaction")]
     [SerializeField] private Renderer targetRenderer;
     [SerializeField] private Color normalColor = Color.gray;
     [SerializeField] private Color hitColor = Color.red;
     [SerializeField] private float hitFlashDuration = 0.12f;
 
+    // Current dummy HP used only for local testing.
     private int currentHealth;
 
     private MaterialPropertyBlock propertyBlock;
@@ -45,6 +49,7 @@ public class DummyTargetHealth : MonoBehaviour
         }
     }
 
+    // Applies test damage and optionally resets the dummy when it dies.
     public void TakeDamage(int damage)
     {
         if (damage <= 0)
@@ -65,6 +70,7 @@ public class DummyTargetHealth : MonoBehaviour
         }
     }
 
+    // Restores HP and visual state for repeated tests.
     public void ResetHealth()
     {
         currentHealth = maxHealth;
@@ -80,6 +86,7 @@ public class DummyTargetHealth : MonoBehaviour
         ApplyColor(hitColor);
     }
 
+    // Applies color through a property block without duplicating materials.
     private void ApplyColor(Color color)
     {
         if (targetRenderer == null || propertyBlock == null)
@@ -87,10 +94,10 @@ public class DummyTargetHealth : MonoBehaviour
 
         targetRenderer.GetPropertyBlock(propertyBlock);
 
-        // URP Lit 계열은 보통 _BaseColor를 사용합니다.
+        // URP Lit shaders usually use _BaseColor.
         propertyBlock.SetColor(BaseColorId, color);
 
-        // Standard/일부 커스텀 셰이더 호환용입니다.
+        // Also support Standard or custom shaders that use _Color.
         propertyBlock.SetColor(ColorId, color);
 
         targetRenderer.SetPropertyBlock(propertyBlock);

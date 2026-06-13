@@ -2,9 +2,11 @@ using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
+// Networked smoke or toxic cloud zone with scalable visuals and optional poison application.
 public class SmokeZone : NetworkBehaviour
 {
     [Header("Smoke")]
+    // Visual root and trigger collider scaled by the networked radius.
     [SerializeField] private Transform visualRoot;
     [SerializeField] private SphereCollider triggerCollider;
 
@@ -14,6 +16,7 @@ public class SmokeZone : NetworkBehaviour
     [SerializeField] private float defaultDuration = 5.0f;
 
     [Header("Color")]
+    // Colors used to distinguish normal smoke from toxic smoke.
     [SerializeField] private Color normalSmokeColor = new Color(0.8f, 0.8f, 0.8f, 0.8f);
     [SerializeField] private Color toxicSmokeColor = new Color(0.15f, 1f, 0.15f, 0.85f);
 
@@ -22,25 +25,20 @@ public class SmokeZone : NetworkBehaviour
 
     [Header("Toxic Cloud Growth")]
     [SerializeField] private float toxicInitialDelay = 0.15f;
-
-    [Tooltip("독 데미지 판정 범위가 최종 크기까지 커지는 시간입니다.")]
     [SerializeField] private float toxicDamageGrowthSeconds = 1.0f;
 
     [Range(0f, 1f)]
     [SerializeField] private float toxicStartRadiusMultiplier = 0.1f;
-
-    [Tooltip("시각 효과보다 판정을 약간 작게 두면 더 공정하게 느껴집니다.")]
     [Range(0.1f, 1.2f)]
     [SerializeField] private float toxicMaxDamageRadiusMultiplier = 0.85f;
 
     [Networked] private float SpawnSimulationTimeNet { get; set; }
 
-    [Tooltip("독 구름이 범위 안 대상을 다시 검사하는 간격입니다.")]
     [SerializeField] private float toxicApplyInterval = 0.35f;
 
-    [Tooltip("독 구름이 ApplyPoison을 걸 때의 기본 지속시간입니다. Projectile에서 값이 0으로 들어오면 이 값을 사용합니다.")]
     [SerializeField] private float defaultPoisonRefreshDuration = 1.25f;
 
+    // Networked smoke state replicated to all clients.
     [Networked] private NetworkBool IsToxicNet { get; set; }
     [Networked] private float RadiusNet { get; set; }
     [Networked] private TickTimer LifeTimer { get; set; }
@@ -70,6 +68,7 @@ public class SmokeZone : NetworkBehaviour
         smokePropertyBlock = new MaterialPropertyBlock();
     }
 
+    // Initializes cloud radius, lifetime, poison settings, and visuals.
     public void Init(
         NetworkRunner runner,
         float radius,
@@ -136,6 +135,7 @@ public class SmokeZone : NetworkBehaviour
         UpdateToxicColliderRadius();
     }
 
+    // Despawns the cloud when the match ends or its lifetime expires.
     public override void FixedUpdateNetwork()
     {
         if (!HasStateAuthority)
@@ -158,6 +158,7 @@ public class SmokeZone : NetworkBehaviour
         UpdateToxicCloud();
     }
 
+    // Periodically applies poison to targets inside a toxic cloud.
     private void UpdateToxicCloud()
     {
         if (!IsToxicNet)
@@ -177,6 +178,7 @@ public class SmokeZone : NetworkBehaviour
         ApplyPoisonToTargetsInRange();
     }
 
+    // Calculates the growing toxic damage radius over time.
     private float GetCurrentToxicDamageRadius()
     {
         float finalRadius = Mathf.Max(0.1f, RadiusNet);
@@ -196,7 +198,7 @@ public class SmokeZone : NetworkBehaviour
         float growthTime = Mathf.Max(0.01f, toxicDamageGrowthSeconds);
         float t = Mathf.Clamp01(elapsed / growthTime);
 
-        // 부드럽게 커지도록 SmoothStep 적용
+        // SmoothStep makes the toxic radius grow more smoothly.
         t = t * t * (3f - 2f * t);
 
         float startRadius = finalRadius * toxicStartRadiusMultiplier;
@@ -205,6 +207,7 @@ public class SmokeZone : NetworkBehaviour
         return Mathf.Lerp(startRadius, endRadius, t);
     }
 
+    // Finds targets in range and applies poison or dummy damage once per interval.
     private void ApplyPoisonToTargetsInRange()
     {
         float currentDamageRadius = GetCurrentToxicDamageRadius();
@@ -229,7 +232,7 @@ public class SmokeZone : NetworkBehaviour
             {
                 NetworkId targetId = targetPlayer.Object.Id;
 
-                // 자신이 만든 독 구름에 자신도 피해를 입게 하고 싶다면 이 if문을 제거하면 됩니다.
+                // Remove this check if the owner should also be affected by their toxic cloud.
                 if (targetId == OwnerIdNet)
                     continue;
 
@@ -245,7 +248,7 @@ public class SmokeZone : NetworkBehaviour
                 continue;
             }
 
-            // 더미 테스트용: DummyTargetHealth에는 독 상태가 없으므로 구름 틱마다 직접 피해를 줍니다.
+            // Dummy targets do not have poison state, so apply direct damage each cloud tick.
             DummyTargetHealth dummy = col.GetComponentInParent<DummyTargetHealth>();
             if (dummy != null && !damagedDummies.Contains(dummy))
             {
@@ -267,6 +270,7 @@ public class SmokeZone : NetworkBehaviour
         return ownerObject.GetComponent<PlayerNetwork>();
     }
 
+    // Updates collider radius and visual scale from a safe radius value.
     private void ApplyRadius(float radius)
     {
         float safeRadius = Mathf.Max(0.1f, radius);
@@ -301,6 +305,7 @@ public class SmokeZone : NetworkBehaviour
         }
     }
 
+    // Applies smoke color to particles and renderers.
     private void ApplySmokeColor(bool isToxic)
     {
         Color color = isToxic ? toxicSmokeColor : normalSmokeColor;

@@ -2,18 +2,22 @@
 using UnityEngine;
 using UnityEngine.UI;
 
+// Controls the title, login/profile, character selection, and lobby panel flow.
 public class MainMenuFlowUI : MonoBehaviour
 {
+    // Main title header that is hidden after entering the lobby.
     [Header("Header")]
     [Tooltip("Title header shown at the top of the main menu.")]
     [SerializeField] private GameObject titleHeader;
 
+    // Menu panels shown one at a time during the main menu flow.
     [Header("Panels")]
     [SerializeField] private GameObject titlePanel;
     [SerializeField] private GameObject profilePanel;
     [SerializeField] private GameObject characterSelectPanel;
     [SerializeField] private GameObject lobbyPanel;
 
+    // World-space character preview shown during character selection.
     [Header("World Preview")]
     [Tooltip("World-space character preview root placed outside the Canvas.")]
     [SerializeField] private GameObject characterPreviewArea;
@@ -43,6 +47,7 @@ public class MainMenuFlowUI : MonoBehaviour
     [Header("Root")]
     [SerializeField] private GameObject menuRoot;
 
+    // Currently selected character index in the preview carousel.
     private int selectedCharacterId;
     private bool _waitingForNicknameUpdate;
 
@@ -177,6 +182,7 @@ public class MainMenuFlowUI : MonoBehaviour
         }
     }
 
+    // Shows the first title screen state.
     private void ShowTitle()
     {
         SetPanel(titleHeader, true);
@@ -188,6 +194,7 @@ public class MainMenuFlowUI : MonoBehaviour
         SetPanel(characterPreviewArea, false);
     }
 
+    // Opens the login/profile panel.
     private void ShowProfile()
     {
         SetPanel(titleHeader, true);
@@ -202,6 +209,7 @@ public class MainMenuFlowUI : MonoBehaviour
             statusText.text = "";
     }
 
+    // Opens character selection after profile login succeeds.
     private void ShowCharacterSelect()
     {
         SetPanel(titleHeader, true);
@@ -214,6 +222,7 @@ public class MainMenuFlowUI : MonoBehaviour
         RefreshCharacterPreview();
     }
 
+    // Validates nickname input and requests backend nickname update.
     private void OnContinueClicked()
     {
         string playerName = nameInput != null ? nameInput.text.Trim() : "";
@@ -290,6 +299,7 @@ public class MainMenuFlowUI : MonoBehaviour
         RefreshCharacterPreview();
     }
 
+    // Updates the active preview model and character name label.
     private void RefreshCharacterPreview()
     {
         if (previewCharacters == null)
@@ -375,6 +385,7 @@ public class MainMenuFlowUI : MonoBehaviour
 #endif
     }
 
+    // Restores the lobby panel directly after scene reload or match return.
     public void ShowLobbyDirect()
     {
         Debug.Log("[MainMenuFlowUI] ShowLobbyDirect");

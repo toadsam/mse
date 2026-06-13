@@ -1,8 +1,10 @@
 using TMPro;
 using UnityEngine;
 
+// Controls the local augment selection screen between rounds.
 public class AugmentSelectionUI : MonoBehaviour
 {
+    // Main UI references for augment selection and waiting states.
     [SerializeField] private GameObject root;
     [SerializeField] private TMP_Text titleText;
     [SerializeField] private TMP_Text subText;
@@ -10,9 +12,11 @@ public class AugmentSelectionUI : MonoBehaviour
     [SerializeField] private AugmentCardUI[] cards;
     [SerializeField] private AugmentDatabase augmentDatabase;
 
+    // Cached match/player references used to read networked offer state.
     private PlayerNetwork localPlayer;
     private MatchManager matchManager;
 
+    // Tracks visibility and offered ids to avoid unnecessary UI rebuilds.
     private bool lastVisible;
 
     private int lastA0 = -999;
@@ -28,6 +32,7 @@ public class AugmentSelectionUI : MonoBehaviour
         SetVisible(false);
     }
 
+    // Shows, hides, and refreshes the UI according to the current match phase.
     private void Update()
     {
         if (GameManager.Instance == null) return;
@@ -47,7 +52,7 @@ public class AugmentSelectionUI : MonoBehaviour
 
             if (shouldShow)
             {
-                // 새 라운드 진입 시 반드시 다시 갱신되도록 캐시 초기화
+                // Reset cached offer ids so the new round always refreshes the cards.
                 lastA0 = -999;
                 lastA1 = -999;
                 lastA2 = -999;
@@ -98,6 +103,7 @@ public class AugmentSelectionUI : MonoBehaviour
         UpdateSelectionState();
     }
 
+    // Rebuilds card contents from the local player's offered augment ids.
     public void RefreshUI()
     {
         if (localPlayer == null || augmentDatabase == null) return;
@@ -131,6 +137,7 @@ public class AugmentSelectionUI : MonoBehaviour
         if (waitingText) waitingText.gameObject.SetActive(false);
     }
 
+    // Sends the selected card slot to the state authority.
     private void OnCardClicked(int slotIndex)
     {
         if (localPlayer == null) return;
@@ -154,6 +161,7 @@ public class AugmentSelectionUI : MonoBehaviour
         lastA2 = localPlayer.OfferedAugmentId2;
     }
 
+    // Updates the card and waiting text after this player has selected.
     private void UpdateSelectionState()
     {
         bool selected = localPlayer != null && localPlayer.HasSelectedAugmentNet;

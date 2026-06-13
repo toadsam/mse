@@ -1,19 +1,20 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 매치 종료 후 Match_Result 패널을 표시한다.
-// - 백엔드(MySQL) 저장이 끝나면(성공/실패 무관) 결과를 표시한다.
-// - 닉네임 기준 승자/점수, 선택 캐릭터, 선택 augment 이름, 매치 시간을 보여준다.
-// - "로비로" 버튼 또는 자동 타이머로 로비에 복귀한다.
+// Displays the Match_Result panel after the match ends.
+// It waits for backend save completion or a timeout, then shows winner, score, characters, augments, and duration.
+// The player can return to the lobby manually or through the automatic countdown.
 public class MatchResultUI : MonoBehaviour
 {
     [Header("Root")]
+    // Root object for the final result panel.
     [SerializeField] private GameObject root;
 
     [Header("Result Texts")]
+    // Text fields filled with final match result information.
     [SerializeField] private TMP_Text winnerText;
     [SerializeField] private TMP_Text player1ScoreText;
     [SerializeField] private TMP_Text player2ScoreText;
@@ -23,18 +24,16 @@ public class MatchResultUI : MonoBehaviour
     [SerializeField] private TMP_Text saveStatusText;
 
     [Header("Return To Lobby")]
+    // Bootstrap reference used to shut down the match and return to lobby.
     [SerializeField] private FusionBootstrap bootstrap;
     [SerializeField] private Button returnToLobbyButton;
-    [Tooltip("결과 표시 후 자동으로 로비에 복귀하기까지의 시간(초). 0 이하면 자동 복귀 안 함.")]
     [SerializeField] private float autoReturnSeconds = 10f;
     [SerializeField] private TMP_Text autoReturnText;
 
     [Header("Menu Panels To Restore")]
-    [Tooltip("로비 복귀 시 다시 활성화할 메뉴/로비 패널들(MainMenuFlowUI의 lobbyPanel, titleHeader 등).")]
     [SerializeField] private GameObject[] panelsToShowOnReturn;
 
     [Header("Fallback")]
-    [Tooltip("저장이 끝나지 않아도 결과 화면을 강제로 표시하기까지의 최대 대기 시간(초).")]
     [SerializeField] private float showResultTimeoutSeconds = 6f;
 
     [Header("Loading")]
@@ -43,6 +42,7 @@ public class MatchResultUI : MonoBehaviour
     [SerializeField] private string loadingMessage = "Loading result";
     [SerializeField] private float loadingDotInterval = 0.35f;
 
+    // UI state flags used to prevent repeated result display or lobby return.
     private bool isShown;
     private bool isReturning;
     private bool loadingVisible;
@@ -72,6 +72,7 @@ public class MatchResultUI : MonoBehaviour
         SetLoadingVisible(false, true);
     }
 
+    // Waits for match result data, handles loading UI, and updates auto-return.
     private void Update()
     {
         MatchManager match = GameManager.Instance != null ? GameManager.Instance.Match : null;
@@ -146,6 +147,7 @@ public class MatchResultUI : MonoBehaviour
         UpdateAutoReturnCountdown();
     }
 
+    // Fills all result texts from the final match state.
     private void ShowResult(MatchManager match)
     {
         SetLoadingVisible(false);
@@ -159,7 +161,7 @@ public class MatchResultUI : MonoBehaviour
         string name0 = GetNickname(slot0, 1);
         string name1 = GetNickname(slot1, 2);
 
-        // Winner (닉네임)
+        // Winner nickname.
         if (winnerText != null)
         {
             string winnerName = match.MatchWinnerSlot == 0 ? name0
@@ -168,7 +170,7 @@ public class MatchResultUI : MonoBehaviour
             winnerText.text = $"Winner: {winnerName}";
         }
 
-        // Player1 / Player2 Score (닉네임 기준)
+        // Player scores shown by nickname.
         if (scoreRoutine != null)
             StopCoroutine(scoreRoutine);
 
@@ -178,7 +180,7 @@ public class MatchResultUI : MonoBehaviour
         if (player2ScoreText != null)
             player2ScoreText.text = $"{name1}: 0";
 
-        // Selected Character
+        // Selected character names.
         if (charactersText != null)
         {
             string c0 = GetCharacterName(slot0);
@@ -186,7 +188,7 @@ public class MatchResultUI : MonoBehaviour
             charactersText.text = $"{name0}: {c0}\n{name1}: {c1}";
         }
 
-        // Selected Augments (이름)
+        // Selected augment names.
         if (augmentsText != null)
         {
             string a0 = FormatAugments(match.GetSelectedAugmentNames(slot0));
@@ -194,7 +196,7 @@ public class MatchResultUI : MonoBehaviour
             augmentsText.text = $"{name0}: {a0}\n{name1}: {a1}";
         }
 
-        // Match Duration
+        // Final match duration.
         if (durationText != null)
             durationText.text = $"Duration: {FormatDuration(match.MatchDurationSeconds)}";
 
@@ -239,6 +241,7 @@ public class MatchResultUI : MonoBehaviour
         ReturnToLobby();
     }
 
+    // Requests Fusion shutdown and restores the lobby screen.
     private void ReturnToLobby()
     {
         if (isReturning)
@@ -295,6 +298,7 @@ public class MatchResultUI : MonoBehaviour
         return string.Join(", ", names);
     }
 
+    // Formats match duration as mm:ss.
     private static string FormatDuration(float seconds)
     {
         if (seconds < 0f)

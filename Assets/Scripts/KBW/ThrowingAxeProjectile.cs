@@ -1,13 +1,16 @@
-using Fusion;
+癤퓎sing Fusion;
 using UnityEngine;
 
+// Networked throwing axe that can damage, stick, drop, and be picked up by its owner.
 public class ThrowingAxeProjectile : NetworkBehaviour
 {
     [Header("Collision")]
+    // Collision radius used by the axe sphere cast.
     [SerializeField] private float radius = 0.22f;
     [SerializeField] private LayerMask collisionMask = ~0;
 
     [Header("Movement")]
+    // Flight arc values used while the axe is airborne.
     [SerializeField] private float forwardSpeed = 18f;
     [SerializeField] private float upwardSpeed = 2.5f;
     [SerializeField] private float gravity = -12f;
@@ -17,6 +20,7 @@ public class ThrowingAxeProjectile : NetworkBehaviour
     [SerializeField] private int damage = 35;
 
     [Header("Pickup")]
+    // Owner pickup settings after the axe has landed or stuck.
     [SerializeField] private float pickupRadius = 1.1f;
     [SerializeField] private float pickupDelaySeconds = 0.25f;
 
@@ -33,6 +37,7 @@ public class ThrowingAxeProjectile : NetworkBehaviour
     [SerializeField] private float droppedGroundOffset = 0.06f;
     [SerializeField] private Vector3 droppedVisualEulerOffset = new Vector3(0f, 0f, 90f);
 
+    // Networked owner and state timers for pickup and lifetime.
     [Networked] private NetworkId OwnerIdNet { get; set; }
     [Networked] private NetworkBool IsStuckNet { get; set; }
     [Networked] private TickTimer LifeTimer { get; set; }
@@ -49,6 +54,7 @@ public class ThrowingAxeProjectile : NetworkBehaviour
             visualRoot = transform;
     }
 
+    // Initializes owner, movement direction, lifetime, and pickup delay.
     public void Init(NetworkRunner runner, PlayerNetwork owner, Vector3 direction)
     {
         if (!HasStateAuthority)
@@ -78,6 +84,7 @@ public class ThrowingAxeProjectile : NetworkBehaviour
         hasInitialized = true;
     }
 
+    // Updates flight, stuck pickup, lifetime, and match-state despawn.
     public override void FixedUpdateNetwork()
     {
         if (!HasStateAuthority)
@@ -114,6 +121,7 @@ public class ThrowingAxeProjectile : NetworkBehaviour
         UpdateVisualSpin();
     }
 
+    // Simulates axe movement and resolves the first collision along its path.
     private void UpdateFlyingMovement()
     {
         Vector3 currentPosition = transform.position;
@@ -142,6 +150,7 @@ public class ThrowingAxeProjectile : NetworkBehaviour
             transform.rotation = Quaternion.LookRotation(lookDir.normalized);
     }
 
+    // Checks the axe flight path and ignores the owner immediately after throw.
     private bool CheckCollision(Vector3 from, Vector3 to, out RaycastHit hit)
     {
         Vector3 move = to - from;
@@ -169,7 +178,7 @@ public class ThrowingAxeProjectile : NetworkBehaviour
 
         PlayerNetwork hitPlayer = hit.collider.GetComponentInParent<PlayerNetwork>();
 
-        // 던진 직후 자기 자신에게 맞는 것 방지
+        // Prevent the axe from immediately hitting its owner after throw.
         if (hitPlayer != null &&
             hitPlayer.Object != null &&
             hitPlayer.Object.Id == OwnerIdNet)
@@ -180,6 +189,7 @@ public class ThrowingAxeProjectile : NetworkBehaviour
         return true;
     }
 
+    // Applies axe damage to a player or dummy target hit by the axe.
     private void ApplyHitDamage(RaycastHit hit)
     {
         PlayerNetwork ownerPlayer = FindOwnerPlayer();
@@ -209,6 +219,7 @@ public class ThrowingAxeProjectile : NetworkBehaviour
         }
     }
 
+    // Sticks the axe to world geometry and starts the pickup delay.
     private void StickAt(Vector3 point, Vector3 normal)
     {
         IsStuckNet = true;
@@ -230,6 +241,7 @@ public class ThrowingAxeProjectile : NetworkBehaviour
         PickupDelayTimer = TickTimer.CreateFromSeconds(Runner, pickupDelaySeconds);
     }
 
+    // Restores the axe to its owner when the owner is close enough.
     private void CheckPickup()
     {
         if (!PickupDelayTimer.ExpiredOrNotRunning(Runner))
@@ -267,6 +279,7 @@ public class ThrowingAxeProjectile : NetworkBehaviour
         return ownerObject.GetComponent<PlayerNetwork>();
     }
 
+    // Rotates the visual while flying and applies stuck/drop orientation.
     private void UpdateVisualSpin()
     {
         if (visualRoot == null)

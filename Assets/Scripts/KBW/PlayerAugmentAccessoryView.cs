@@ -1,9 +1,11 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
+// Builds and updates local visuals for orbit shield and orbit melee augments.
 public class PlayerAugmentAccessoryView : MonoBehaviour
 {
     [Header("References")]
+    // Player whose networked accessory counts drive these visuals.
     [SerializeField] private PlayerNetwork player;
     [SerializeField] private Transform visualRoot;
 
@@ -16,6 +18,7 @@ public class PlayerAugmentAccessoryView : MonoBehaviour
     [SerializeField] private Vector3 shieldEulerOffset = new Vector3(0f, 90f, 0f);
     [SerializeField] private Vector3 meleeEulerOffset = new Vector3(0f, 0f, 90f);
 
+    // Reused visual instances for each accessory type.
     private readonly List<Transform> shieldInstances = new();
     private readonly List<Transform> meleeInstances = new();
 
@@ -28,6 +31,7 @@ public class PlayerAugmentAccessoryView : MonoBehaviour
             visualRoot = transform;
     }
 
+    // Synchronizes accessory visuals with current player augment state.
     private void Update()
     {
         if (player == null)
@@ -105,6 +109,7 @@ public class PlayerAugmentAccessoryView : MonoBehaviour
         }
     }
 
+    // Creates, hides, or reuses instances until the list matches the target count.
     private void EnsureInstanceCount(
         List<Transform> list,
         int targetCount,

@@ -2,9 +2,11 @@ using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
+// Networked projectile that supports augment effects such as size, bounce, pierce, poison, explosion, and toxic cloud.
 public class RifleProjectile : NetworkBehaviour
 {
     [Header("Projectile")]
+    // Sphere cast radius and hit mask used for projectile collision.
     [SerializeField] private float radius = 0.12f;
     [SerializeField] private LayerMask hitMask = ~0;
     [SerializeField] private float lifeSeconds = 3f;
@@ -16,6 +18,7 @@ public class RifleProjectile : NetworkBehaviour
     [SerializeField] private NetworkPrefabRef explosionFxPrefab;
 
     [Header("Visual")]
+    // Visual components recolored or resized from networked projectile state.
     [SerializeField] private Renderer[] projectileRenderers;
     [SerializeField] private TrailRenderer[] trailRenderers;
     [SerializeField] private ParticleSystem[] projectileParticles;
@@ -26,11 +29,13 @@ public class RifleProjectile : NetworkBehaviour
     [Header("Area FX")]
     [SerializeField] private NetworkPrefabRef toxicCloudPrefab;
 
+    // Networked flag that tells all clients to use poison-colored visuals.
     [Networked] private NetworkBool PoisonVisualNet { get; set; }
 
     private MaterialPropertyBlock visualPropertyBlock;
     private bool lastAppliedPoisonVisual;
 
+    // Runtime projectile movement, owner, lifetime, and augment effect state.
     private Vector3 direction;
     private float speed;
     private int damage;
@@ -81,6 +86,7 @@ public class RifleProjectile : NetworkBehaviour
         visualPropertyBlock = new MaterialPropertyBlock();
     }
 
+    // Initializes projectile movement, damage, owner, lifetime, and all augment effect values.
     public void Init(
         NetworkRunner runner,
         PlayerNetwork owner,
@@ -166,6 +172,7 @@ public class RifleProjectile : NetworkBehaviour
             ApplyProjectileVisual(PoisonVisualNet);
     }
 
+    // Moves the projectile and checks collisions on the state authority.
     public override void FixedUpdateNetwork()
     {
         if (!HasStateAuthority)
@@ -194,6 +201,7 @@ public class RifleProjectile : NetworkBehaviour
             transform.rotation = Quaternion.LookRotation(direction);
     }
 
+    // Sphere casts along the projectile path and resolves hit, pierce, bounce, or despawn.
     private bool CheckHit(Vector3 from, Vector3 to)
     {
         Vector3 move = to - from;
@@ -265,6 +273,7 @@ public class RifleProjectile : NetworkBehaviour
         return true;
     }
 
+    // Applies direct hit damage and status effects to players or dummy targets.
     private bool TryApplyDirectHit(RaycastHit hit)
     {
         int finalDamage = GetFinalDamage();
@@ -297,6 +306,7 @@ public class RifleProjectile : NetworkBehaviour
         return false;
     }
 
+    // Calculates damage after distance-based grow shot scaling.
     private int GetFinalDamage()
     {
         if (!growDamageByDistance)
@@ -309,6 +319,7 @@ public class RifleProjectile : NetworkBehaviour
         return Mathf.Max(1, Mathf.RoundToInt(damage * multiplier));
     }
 
+    // Applies area damage and hit confirms for explosion effects.
     private void ApplyExplosionDamage(Vector3 center)
     {
         if (explosionRadius <= 0f || explosionDamageMultiplier <= 0f)
@@ -394,6 +405,7 @@ public class RifleProjectile : NetworkBehaviour
             SpawnToxicCloud(position);
     }
 
+    // Slightly redirects a bounced projectile toward the nearest enemy.
     private Vector3 AdjustDirectionTowardEnemy(Vector3 reflectedDirection)
     {
         PlayerNetwork ownerPlayer = FindOwnerPlayer();
@@ -434,7 +446,7 @@ public class RifleProjectile : NetworkBehaviour
 
         enemyDir.Normalize();
 
-        // 완전 유도탄이 아니라 살짝만 보정합니다.
+        // This is only a slight correction, not full homing behavior.
         Vector3 adjusted = Vector3.Slerp(reflectedDirection, enemyDir, 0.35f);
         return adjusted.normalized;
     }
@@ -461,6 +473,7 @@ public class RifleProjectile : NetworkBehaviour
         return ownerObject.GetComponent<PlayerNetwork>();
     }
 
+    // Applies normal or poison colors to renderers, trails, and particles.
     private void ApplyProjectileVisual(bool isPoison)
     {
         Color color = isPoison ? poisonProjectileColor : normalProjectileColor;
@@ -474,13 +487,13 @@ public class RifleProjectile : NetworkBehaviour
 
                 r.GetPropertyBlock(visualPropertyBlock);
 
-                // URP Lit 계열
+                // URP Lit shader support.
                 visualPropertyBlock.SetColor("_BaseColor", color);
 
-                // Standard 또는 일부 커스텀 셰이더
+                // Standard or custom shader support.
                 visualPropertyBlock.SetColor("_Color", color);
 
-                // Emission을 쓰는 총알이면 더 독 탄환처럼 보임
+                // Emission makes poison bullets more readable when supported.
                 visualPropertyBlock.SetColor("_EmissionColor", color * (isPoison ? 1.5f : 0f));
 
                 r.SetPropertyBlock(visualPropertyBlock);
@@ -554,6 +567,7 @@ public class RifleProjectile : NetworkBehaviour
         ClearProjectileVisual();
     }
 
+    // Spawns a networked toxic cloud at the projectile impact point.
     private void SpawnToxicCloud(Vector3 position)
     {
         if (!toxicCloudPrefab.IsValid)

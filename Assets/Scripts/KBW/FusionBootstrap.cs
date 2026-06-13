@@ -7,17 +7,21 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using System.Collections;
 
+// Creates and manages the Photon Fusion runner, lobby flow, room sessions, and cleanup.
 public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 {
     [Header("Network")]
+    // Networked player prefab spawned when a player joins a room.
     [SerializeField] private NetworkPrefabRef playerPrefab;
 
     [Header("Lobby")]
+    // Lobby settings used for room discovery and 1v1 room creation.
     [SerializeField] private string customLobbyName = "LastRound_Lobby";
     [SerializeField] private int maxPlayersPerRoom = 2;
     [SerializeField] private string defaultRoomPrefix = "LastRound";
 
     [Header("Object Pool")]
+    // Optional object provider used to pool spawned network objects.
     [SerializeField] private PooledNetworkObjectProvider objectProvider;
     [SerializeField] private int maxPooledObjectsPerPrefab = 64;
 
@@ -29,15 +33,18 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private bool autoRejoinLobbyAfterReturn = true;
     private Coroutine rejoinLobbyRoutine;
 
+    // Active Fusion runner for the lobby or current game session.
     private NetworkRunner runner;
     private NetworkSceneManagerDefault sceneManager;
     public event Action GameSessionStarted;
 
+    // Maps connected players to their spawned network player objects.
     private readonly Dictionary<PlayerRef, NetworkObject> spawnedPlayers = new();
     private readonly List<SessionInfo> cachedSessions = new();
 
     public IReadOnlyList<SessionInfo> CachedSessions => cachedSessions;
 
+    // UI events used by lobby screens to update room list and status text.
     public event Action<IReadOnlyList<SessionInfo>> SessionListUpdated;
     public event Action<string> StatusChanged;
 
@@ -55,6 +62,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
     private static int cleanLobbySceneBuildIndex = -1;
     private static bool cleanLobbyReloading;
 
+    // Buffered one-frame input buttons sent through Fusion input polling.
     private bool dashPressed;
     private bool abilityPressed;
     private bool reloadPressed;
@@ -94,6 +102,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         aug3Pressed |= Input.GetKeyDown(KeyCode.Alpha3);
     }
 
+    // Creates a NetworkRunner and required helpers if none are active.
     private bool CreateRunnerIfNeeded()
     {
         if (runner != null)
@@ -131,6 +140,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         return true;
     }
 
+    // Connects this client to the custom Fusion lobby.
     public async void JoinLobby()
     {
         if (isBusy)
@@ -169,6 +179,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         }
     }
 
+    // Starts a host session with a unique room name.
     public void CreateRoom(string requestedRoomName)
     {
         if (isBusy)
@@ -185,6 +196,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         StartSession(GameMode.Host, roomName);
     }
 
+    // Joins an existing room by name as a client.
     public void JoinRoom(string roomName)
     {
         if (isBusy)
@@ -213,6 +225,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         JoinRoom(session.Name);
     }
 
+    // Starts a Fusion host or client session for the selected room.
     private async void StartSession(GameMode mode, string roomName)
     {
         if (!CreateRunnerIfNeeded())
@@ -304,6 +317,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         StatusChanged?.Invoke($"Rooms found: {cachedSessions.Count}");
     }
 
+    // Server callback that spawns and initializes a player object.
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
         if (!runner.IsServer)
@@ -334,6 +348,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         UpdateRoomAvailability();
     }
 
+    // Handles player disconnects and returns to lobby if a match was active.
     public void OnPlayerLeft(NetworkRunner callbackRunner, PlayerRef player)
     {
         Debug.Log($"[FusionBootstrap] OnPlayerLeft: {player}");
@@ -361,6 +376,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         UpdateRoomAvailability();
     }
 
+    // Collects local keyboard, mouse, and buffered button input for Fusion.
     public void OnInput(NetworkRunner runner, NetworkInput input)
     {
         GameplayInput data = new GameplayInput();
@@ -439,6 +455,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         aug3Pressed = false;
     }
 
+    // Opens or hides the room depending on player count and match state.
     private void UpdateRoomAvailability()
     {
         if (runner == null)
@@ -460,6 +477,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         runner.SessionInfo.IsVisible = canJoin;
     }
 
+    // Schedules an automatic return to the lobby after the match result screen.
     public void ReturnToLobbyAfter(float seconds, string message)
     {
         Debug.Log($"[FusionBootstrap] ReturnToLobbyAfter scheduled. Seconds={seconds}, Message={message}");
@@ -483,6 +501,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         ShutdownAndReturnToLobby(message);
     }
 
+    // Shuts down the current runner and restores the lobby flow.
     public async void ShutdownAndReturnToLobby(string message)
     {
         if (isReturningToLobby)
@@ -616,6 +635,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
 
     public void OnConnectedToServer(NetworkRunner runner) { }
 
+    // Clears runner state, callbacks, pooled objects, and runtime leftovers.
     private void CleanupRunner(NetworkRunner callbackRunner)
     {
         Debug.Log("[FusionBootstrap] CleanupRunner");
@@ -629,7 +649,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         if (callbackRunner != null)
             Destroy(callbackRunner);
 
-        // 중요: 이전 Runner에 붙어 있던 SceneManager도 제거합니다.
+        // Remove the SceneManager component attached to the old runner.
         DestroySceneManagerComponent();
 
         if (objectProvider == null)
@@ -668,6 +688,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         Debug.Log("[FusionBootstrap] NetworkSceneManagerDefault destroyed.");
     }
 
+    // Restores menu and lobby UI after network shutdown.
     private void ReturnToLobbyUI(string message)
     {
         Debug.Log($"[FusionBootstrap] ReturnToLobbyUI: {message}");
@@ -762,6 +783,7 @@ public class FusionBootstrap : MonoBehaviour, INetworkRunnerCallbacks
         JoinLobby();
     }
 
+    // Reloads the original lobby scene to remove leftover match state.
     private IEnumerator ReloadCurrentSceneForCleanLobby()
     {
         if (cleanLobbyReloading)

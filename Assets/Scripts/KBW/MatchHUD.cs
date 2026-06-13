@@ -1,16 +1,20 @@
-using TMPro;
+﻿using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+// Updates in-match HUD elements such as HP, round score, and center messages.
 public class MatchHUD : MonoBehaviour
 {
     [Header("Root")]
+    // Root object for all HUD widgets.
     [SerializeField] private GameObject hudRoot;
 
+    // Local player health UI.
     [Header("Health")]
     [SerializeField] private GameObject healthPanel;
     [SerializeField] private Slider healthSlider;
 
+    // Round number and score UI.
     [Header("Round Info")]
     [SerializeField] private GameObject roundInfoPanel;
     [SerializeField] private TMP_Text roundText;
@@ -47,6 +51,7 @@ public class MatchHUD : MonoBehaviour
         SetCenterMessage(false, "");
     }
 
+    // Reads GameManager state and refreshes HUD only during match phases.
     private void Update()
     {
         GameManager gm = GameManager.Instance;
@@ -60,7 +65,7 @@ public class MatchHUD : MonoBehaviour
         MatchManager match = gm.Match;
         PlayerNetwork localPlayer = gm.LocalPlayer;
 
-        // MatchResult 단계는 전용 Match_Result 패널이 담당하므로 HUD는 숨긴다.
+        // Hide the HUD during MatchResult because the dedicated result panel handles it.
         bool shouldShowHud =
             match.CurrentPhase == MatchPhase.RoundIntro ||
             match.CurrentPhase == MatchPhase.Playing ||
@@ -83,6 +88,7 @@ public class MatchHUD : MonoBehaviour
             hudRoot.SetActive(visible);
     }
 
+    // Updates the local HP slider and poison color.
     private void UpdateHealth(PlayerNetwork localPlayer)
     {
         PlayerHealth health = localPlayer != null ? localPlayer.Health : null;
@@ -116,6 +122,7 @@ public class MatchHUD : MonoBehaviour
             healthFillImage.color = health.IsPoisonedNet ? poisonHealthColor : normalHealthColor;
     }
 
+    // Displays current round and score from the local player perspective.
     private void UpdateRoundAndScore(MatchManager match, PlayerNetwork localPlayer)
     {
         if (roundText != null)
@@ -140,6 +147,7 @@ public class MatchHUD : MonoBehaviour
         return 0;
     }
 
+    // Shows round start, win/lose, and final result messages.
     private void UpdateCenterMessage(MatchManager match, PlayerNetwork localPlayer)
     {
         switch (match.CurrentPhase)

@@ -3,14 +3,16 @@ using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
-/// Fusion NetworkObject¿ë Object Pool.
+// Object pool provider for Fusion NetworkObject prefabs.
 public class PooledNetworkObjectProvider : Fusion.Behaviour, INetworkObjectProvider
 {
     [Header("Pool Settings")]
     [SerializeField] private bool delayIfSceneManagerIsBusy = true;
 
+    // Maximum inactive instances stored per prefab id.
     [SerializeField] private int maxPoolCountPerPrefab = 64;
 
+    // Pool storage grouped by Fusion prefab id.
     private readonly Dictionary<NetworkPrefabId, Queue<NetworkObject>> freeObjects = new();
 
     public void SetMaxPoolCount(int count)
@@ -18,6 +20,7 @@ public class PooledNetworkObjectProvider : Fusion.Behaviour, INetworkObjectProvi
         maxPoolCountPerPrefab = count;
     }
 
+    // Provides a pooled or newly created prefab instance to Fusion.
     public NetworkObjectAcquireResult AcquirePrefabInstance(
         NetworkRunner runner,
         in NetworkPrefabAcquireContext context,
@@ -65,6 +68,7 @@ public class PooledNetworkObjectProvider : Fusion.Behaviour, INetworkObjectProvi
         return NetworkObjectAcquireResult.Success;
     }
 
+    // Returns a despawned prefab instance to the pool or destroys it.
     public void ReleaseInstance(
         NetworkRunner runner,
         in NetworkObjectReleaseContext context)
@@ -87,6 +91,7 @@ public class PooledNetworkObjectProvider : Fusion.Behaviour, INetworkObjectProvi
             runner.Prefabs.RemoveInstance(context.TypeId.AsPrefabId);
     }
 
+    // Reuses an inactive object or instantiates a new pooled object.
     private NetworkObject GetOrCreateInstance(NetworkObject prefab, NetworkPrefabId prefabId)
     {
         if (!freeObjects.TryGetValue(prefabId, out Queue<NetworkObject> queue))
@@ -138,6 +143,7 @@ public class PooledNetworkObjectProvider : Fusion.Behaviour, INetworkObjectProvi
         return runner.Prefabs.GetId(prefabGuid);
     }
 
+    // Destroys all inactive pooled objects during runner cleanup.
     public void ClearPool()
     {
         foreach (var pair in freeObjects)

@@ -1,15 +1,18 @@
-using System;
+﻿using System;
 using Fusion;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+// Displays one available lobby room and its join button.
 public class LobbyRoomItemUI : MonoBehaviour
 {
+    // UI fields showing room name, occupancy, and join state.
     [SerializeField] private TMP_Text roomNameText;
     [SerializeField] private TMP_Text playerCountText;
     [SerializeField] private Button joinButton;
 
+    // Session data and callback used when the join button is pressed.
     private SessionInfo session;
     private Action<SessionInfo> onJoinClicked;
     private Coroutine introRoutine;
@@ -19,6 +22,7 @@ public class LobbyRoomItemUI : MonoBehaviour
         UIAnimationBootstrap.InstallButton(joinButton);
     }
 
+    // Fills this list item with session data and connects the join callback.
     public void Bind(SessionInfo sessionInfo, Action<SessionInfo> joinCallback)
     {
         session = sessionInfo;

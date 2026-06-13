@@ -1,6 +1,7 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
+// Network button indices used by Fusion input.
 public enum EInputButton
 {
     Fire = 0,
@@ -14,8 +15,10 @@ public enum EInputButton
     ConfirmAugment3 = 8,
 }
 
+// Input payload sent from the local client to the state authority.
 public struct GameplayInput : INetworkInput
 {
+    // Movement, look, aim ray, and button state for one network tick.
     public Vector2 Move;
     public Vector2 Look;
     public Vector3 AimOrigin;

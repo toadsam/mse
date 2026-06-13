@@ -2,18 +2,22 @@ using Fusion;
 using UnityEngine;
 
 [RequireComponent(typeof(PlayerNetwork))]
+// Networked health component that handles damage, death, healing, and poison ticks.
 public class PlayerHealth : NetworkBehaviour
 {
     [Header("Health")]
+    // Maximum HP restored at the start of each round.
     [SerializeField] private int maxHealth = 100;
 
     [Header("Poison")]
     [SerializeField] private float poisonTickInterval = 1.0f;
 
+    // Networked health state replicated to HUD and match logic.
     [Networked] public int CurrentHealth { get; private set; }
     [Networked] public NetworkBool IsAlive { get; private set; }
     [Networked] public int DamageFeedbackCount { get; private set; }
 
+    // Networked poison state controlled by the state authority.
     [Networked] private int PoisonDamagePerTick { get; set; }
     [Networked] private TickTimer PoisonEndTimer { get; set; }
     [Networked] private TickTimer PoisonTickTimer { get; set; }
@@ -49,6 +53,7 @@ public class PlayerHealth : NetworkBehaviour
         UpdatePoison();
     }
 
+    // Restores HP and clears all status effects for a new round.
     public void ResetHealth()
     {
         if (!HasStateAuthority)
@@ -68,6 +73,7 @@ public class PlayerHealth : NetworkBehaviour
             owner.SetDead(false);
     }
 
+    // Applies damage only during the Playing phase and reports death when HP reaches zero.
     public bool TakeDamage(int damage, PlayerNetwork attacker = null)
     {
         if (!HasStateAuthority)
@@ -92,6 +98,7 @@ public class PlayerHealth : NetworkBehaviour
         return true;
     }
 
+    // Restores HP up to the maximum value.
     public bool Heal(int amount)
     {
         if (!HasStateAuthority)
@@ -109,6 +116,7 @@ public class PlayerHealth : NetworkBehaviour
         return CurrentHealth > before;
     }
 
+    // Starts or refreshes poison damage over time from an attacker.
     public void ApplyPoison(int damagePerTick, float duration, PlayerNetwork attacker = null)
     {
         if (!HasStateAuthority)
@@ -129,8 +137,8 @@ public class PlayerHealth : NetworkBehaviour
         PoisonDamagePerTick = Mathf.Max(PoisonDamagePerTick, damagePerTick);
         PoisonEndTimer = TickTimer.CreateFromSeconds(Runner, duration);
 
-        // 이미 독 상태라면 TickTimer를 매번 다시 밀지 않습니다.
-        // 그래야 독 구름 안에 계속 있어도 실제 독 데미지가 정상적으로 들어갑니다.
+        // Do not keep pushing the tick timer while poison is already active.
+        // This keeps toxic cloud damage ticking at the intended interval.
         if (!wasAlreadyPoisoned || PoisonTickTimer.ExpiredOrNotRunning(Runner))
             PoisonTickTimer = TickTimer.CreateFromSeconds(Runner, poisonTickInterval);
 
@@ -141,6 +149,7 @@ public class PlayerHealth : NetworkBehaviour
         IsPoisonedNet = true;
     }
 
+    // Applies poison ticks and clears poison when its duration ends.
     private void UpdatePoison()
     {
         if (!IsAlive)
@@ -179,6 +188,7 @@ public class PlayerHealth : NetworkBehaviour
         return attackerObject.GetComponent<PlayerNetwork>();
     }
 
+    // Marks the player dead and notifies MatchManager about the defeat.
     private void Die(PlayerNetwork attacker)
     {
         if (!HasStateAuthority)

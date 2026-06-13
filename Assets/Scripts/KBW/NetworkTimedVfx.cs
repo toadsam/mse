@@ -1,11 +1,14 @@
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
+// Despawns a spawned network VFX object after a fixed lifetime.
 public class NetworkTimedVfx : NetworkBehaviour
 {
+    // Network timer that controls when the VFX despawns.
     private TickTimer lifeTimer;
     private bool initialized;
 
+    // Starts the lifetime timer on the state authority.
     public void Init(NetworkRunner runner, float lifetime)
     {
         if (!HasStateAuthority)

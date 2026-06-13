@@ -1,15 +1,19 @@
-using Fusion;
+﻿using Fusion;
 using System.Collections.Generic;
 using UnityEngine;
 
+// State-authoritative controller for match phases, rounds, augments, arenas, and result reporting.
 public class MatchManager : NetworkBehaviour
 {
+    // Singleton-style access to the active networked match manager.
     public static MatchManager Instance { get; private set; }
 
     [Header("Augments")]
+    // Source database used to offer and resolve augment definitions.
     [SerializeField] private AugmentDatabase augmentDatabase;
 
     [Header("Match Rules")]
+    // Core match rule values configured from the Inspector.
     [SerializeField] private int playersRequiredToStart = 2; 
     [SerializeField] private int roundsToWin = 3;
     [SerializeField] private float roundIntroSeconds = 2.0f;
@@ -22,6 +26,7 @@ public class MatchManager : NetworkBehaviour
     [SerializeField] private float player1SpawnYaw = -90f;
 
     [Header("Arena Zones")]
+    // Arena zones used as non-repeating round maps.
     [SerializeField] private ArenaZone[] arenaZones;
     [SerializeField] private bool resetArenaPoolWhenEmpty = false;
 
@@ -35,9 +40,11 @@ public class MatchManager : NetworkBehaviour
     [Header("Debug")]
     [SerializeField] private bool enableDebugContextMenu = true;
 
+    // Networked match state replicated to clients and UI.
     [Networked] public MatchPhase Phase { get; set; }
     [Networked] public int RoundIndex { get; private set; }
 
+    // Networked round score for each player slot.
     [Networked] public int Player0Wins { get; private set; }
     [Networked] public int Player1Wins { get; private set; }
 
@@ -48,6 +55,7 @@ public class MatchManager : NetworkBehaviour
     [Networked] private float MatchStartSimTime { get; set; }
 
 
+    // Backend save status used by the result UI.
     [Networked] public NetworkBool ResultSaveResolved { get; private set; }
     [Networked] public NetworkBool ResultSaveSucceeded { get; private set; }
 
@@ -112,6 +120,7 @@ public class MatchManager : NetworkBehaviour
         GameManager.Instance?.SyncCursorWithPhase();
     }
 
+    // Advances phase timers and host-only match flow.
     public override void FixedUpdateNetwork()
     {
         if (!HasStateAuthority)
@@ -176,6 +185,7 @@ public class MatchManager : NetworkBehaviour
         }
     }
 
+    // Resets match state and starts the first augment phase.
     public void StartMatchFlow()
     {
         if (!HasStateAuthority)
@@ -206,6 +216,7 @@ public class MatchManager : NetworkBehaviour
         EnterAugmentPhase();
     }
 
+    // Builds the list of arena indices available for random selection.
     private void InitializeArenaPool()
     {
         unusedArenaIndices.Clear();
@@ -242,6 +253,7 @@ public class MatchManager : NetworkBehaviour
         Debug.Log($"[MatchManager] Arena pool initialized. Count: {unusedArenaIndices.Count}");
     }
 
+    // Starts the between-round augment selection phase.
     public void EnterAugmentPhase()
     {
         if (!HasStateAuthority)
@@ -254,6 +266,7 @@ public class MatchManager : NetworkBehaviour
         Phase = MatchPhase.ChoosingAugment;
     }
 
+    // Chooses an arena and resets players before combat begins.
     private void EnterRoundIntroPhase()
     {
         if (!HasStateAuthority)
@@ -267,6 +280,7 @@ public class MatchManager : NetworkBehaviour
         PhaseTimer = TickTimer.CreateFromSeconds(Runner, roundIntroSeconds);
     }
 
+    // Selects a random unused arena for the next round.
     private void ChooseArenaForRound()
     {
         if (arenaZones == null || arenaZones.Length == 0)
@@ -301,6 +315,7 @@ public class MatchManager : NetworkBehaviour
 );
     }
 
+    // Starts active combat for the current round.
     public void EnterPlayingPhase()
     {
         if (!HasStateAuthority)
@@ -333,6 +348,7 @@ public class MatchManager : NetworkBehaviour
         PhaseTimer = TickTimer.CreateFromSeconds(Runner, roundResultSeconds);
     }
 
+    // Finalizes match duration and starts backend result reporting.
     private void EnterMatchResultPhase()
     {
         if (!HasStateAuthority)
@@ -378,6 +394,7 @@ public class MatchManager : NetworkBehaviour
         pendingSaveResolved = true;
     }
 
+    // Sends the completed match result to the backend service.
     private void ReportMatchResultToBackend()
     {
         if (!HasStateAuthority)
@@ -446,6 +463,7 @@ public class MatchManager : NetworkBehaviour
             });
     }
 
+    // Builds the backend payload for the match result endpoint.
     private MatchResultRequest BuildMatchResultRequest(PlayerNetwork slot0, PlayerNetwork slot1, long winnerId)
     {
         MatchResultRequest request = new MatchResultRequest
@@ -519,6 +537,7 @@ public class MatchManager : NetworkBehaviour
         }
     }
 
+    // Moves to round intro after every required player selected an augment.
     public void NotifyPlayerSelectedAugment(PlayerNetwork player)
     {
         if (!HasStateAuthority)
@@ -528,6 +547,7 @@ public class MatchManager : NetworkBehaviour
             EnterRoundIntroPhase();
     }
 
+    // Registers a round win when a player reaches zero HP.
     public void ReportPlayerDefeated(PlayerNetwork defeatedPlayer)
     {
         if (!HasStateAuthority)
@@ -545,6 +565,7 @@ public class MatchManager : NetworkBehaviour
         RegisterRoundWin(winnerSlot);
     }
 
+    // Updates round score and decides whether the match is finished.
     public void RegisterRoundWin(int winnerSlot)
     {
         if (!HasStateAuthority)
@@ -570,6 +591,7 @@ public class MatchManager : NetworkBehaviour
         EnterRoundResultPhase();
     }
 
+    // Offers augments to both players in round one, then only to the round loser.
     private void AssignAugmentsByRoundRule()
     {
         if (augmentDatabase == null)
@@ -628,6 +650,7 @@ public class MatchManager : NetworkBehaviour
         return player.SlotIndex == loserSlot;
     }
 
+    // Finds all player objects owned by this runner and sorts them by slot.
     private List<PlayerNetwork> GetAllPlayers()
     {
         List<PlayerNetwork> players = new List<PlayerNetwork>();
@@ -669,6 +692,7 @@ public class MatchManager : NetworkBehaviour
         return true;
     }
 
+    // Teleports and resets every player at the active arena spawn points.
     private void ResetAllPlayersForRound()
     {
         List<PlayerNetwork> players = GetAllPlayers();
@@ -758,6 +782,7 @@ public class MatchManager : NetworkBehaviour
         return GetAllPlayers().Find(p => p.SlotIndex == slot);
     }
 
+    // Returns selected augment names for the match result UI and backend payload.
     public List<string> GetSelectedAugmentNames(PlayerNetwork player)
     {
         List<string> names = new List<string>();

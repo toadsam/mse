@@ -6,17 +6,21 @@ using System.Collections.Generic;
 [RequireComponent(typeof(NetworkObject))]
 [RequireComponent(typeof(SimpleKCC))]
 [RequireComponent(typeof(Rigidbody))]
+// Networked player controller for movement, combat, augments, profile data, and round reset state.
 public class PlayerNetwork : NetworkBehaviour
 {
     [Header("Movement")]
+    // Base movement speed before augment bonuses.
     [SerializeField] private float baseMoveSpeed = 6f;
 
     [Header("Dash")]
+    // Dash distance, cooldown, and movement speed.
     [SerializeField] private float dashDistance = 2.5f;
     [SerializeField] private float dashCooldownSeconds = 1.0f;
     [SerializeField] private float dashSpeed = 28f;
 
     [Header("Rifle")]
+    // Rifle and projectile settings used when firing.
     [SerializeField] private int rifleDamage = 20;
     [SerializeField] private float rifleRange = 80f;
     [SerializeField] private float rifleFireInterval = 0.18f;
@@ -71,17 +75,20 @@ public class PlayerNetwork : NetworkBehaviour
     [SerializeField] private float dashSfxVolume = 0.85f;
 
     [Header("Projectile Rifle")]
+    // Network prefab spawned for each rifle projectile.
     [SerializeField] private NetworkPrefabRef rifleProjectilePrefab;
     [SerializeField] private float projectileSpeed = 35f;
     [SerializeField] private float projectileSpawnForwardOffset = 0.4f;
 
     [Header("Active Item Prefabs")]
+    // Network prefabs spawned by active item augments.
     [SerializeField] private NetworkPrefabRef throwableItemPrefab;
     [SerializeField] private NetworkPrefabRef throwingAxePrefab;
     [SerializeField] private NetworkPrefabRef explosionFxPrefab;
     [SerializeField] private NetworkPrefabRef smokeZonePrefab;
 
     [Header("Augment Runtime Stats")]
+    // Networked projectile stat modifiers accumulated from selected augments.
     [Networked] public int ProjectileExtraProjectiles { get; private set; }
     [Networked] public float ProjectileSpreadAngle { get; private set; }
     [Networked] public float ProjectileSizeMultiplier { get; private set; }
@@ -90,6 +97,7 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public float FireIntervalMultiplier { get; private set; }
 
     [Header("Projectile Behavior Runtime")]
+    // Networked projectile behavior modifiers accumulated from selected augments.
     [Networked] public int ProjectileBounceCount { get; private set; }
     [Networked] public int ProjectilePierceCount { get; private set; }
     [Networked] public NetworkBool ProjectileTargetBounce { get; private set; }
@@ -97,6 +105,7 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public float ProjectileMaxGrowDamageMultiplier { get; private set; }
 
     [Header("Status / Area Runtime")]
+    // Networked status and area-effect modifiers for projectiles.
     [Networked] public NetworkBool ProjectileAppliesPoison { get; private set; }
     [Networked] public int ProjectilePoisonDamagePerTick { get; private set; }
     [Networked] public float ProjectilePoisonDuration { get; private set; }
@@ -110,6 +119,7 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public float ProjectileCloudDuration { get; private set; }
 
     [Header("Accessory Runtime")]
+    // Networked accessory counts and stats for orbit shield/melee augments.
     [Networked] public int OrbitShieldCount { get; private set; }
     [Networked] public int OrbitMeleeCount { get; private set; }
     [Networked] public int DropMeleeCount { get; private set; }
@@ -121,11 +131,13 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public float ShieldBlockAngle { get; private set; }
 
     [Header("Active Item Runtime")]
+    // Networked active item type and remaining uses for this round.
     [Networked] public ActiveItemType CurrentActiveItem { get; private set; }
     [Networked] public int ActiveItemUsesRemaining { get; private set; }
     [Networked] public int ActiveItemUsesPerRound { get; private set; }
     [Networked] public int MedKitHealAmount { get; private set; }
 
+    // Networked player identity shown in lobby and result UI.
     [Networked] public NetworkString<_32> PlayerName { get; private set; }
 
     [Networked] public long BackendUserId { get; private set; } 
@@ -138,6 +150,7 @@ public class PlayerNetwork : NetworkBehaviour
     private int lastAppliedRoundTeleportSeq = -1;
 
 
+    // Cached component references used by movement, visuals, and health.
     private SimpleKCC kcc;
     private Rigidbody rb;
     private PlayerView playerView;
@@ -145,6 +158,7 @@ public class PlayerNetwork : NetworkBehaviour
     private PlayerHealth playerHealth;
     public PlayerHealth Health => playerHealth;
 
+    // Networked slot, character, movement, and look state replicated to all clients.
     [Networked] public byte SlotIndex { get; set; }
     [Networked] public byte CharacterId { get; set; }
 
@@ -163,6 +177,7 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public int DashAudioCount { get; set; }
     [Networked] public int MoveState { get; set; }
 
+    // Networked augment offer and selection state for the current augment phase.
     [Networked] public int OfferedAugmentId0 { get; private set; }
     [Networked] public int OfferedAugmentId1 { get; private set; }
     [Networked] public int OfferedAugmentId2 { get; private set; }
@@ -170,11 +185,12 @@ public class PlayerNetwork : NetworkBehaviour
     [Networked] public int SelectedAugmentId { get; private set; }
     [Networked] public NetworkBool HasSelectedAugmentNet { get; private set; }
 
-    // 罹먮┃???쒖떆 ?대쫫(?꾨줈??RPC濡??몄뒪?몄뿉 ?숆린??. 寃곌낵 ?붾㈃/諛깆뿏????μ뿉 ?ъ슜.
+    // Character display name synced from the profile RPC for result UI and backend save.
     [Networked] public NetworkString<_32> CharacterDisplayName { get; private set; }
 
-    // 留ㅼ튂 ?숈븞 ?좏깮??augment瑜??꾩쟻 蹂댁〈(SelectedAugmentId??留??쇱슫??珥덇린?붾릺??吏곸쟾 1媛쒕쭔 ?④린 ?뚮Ц).
-    // 寃곌낵 ?붾㈃ ?쒖떆 諛?諛깆뿏??MySQL) ??μ뿉 ?ъ슜?쒕떎. (best-of-3 湲곗? 理쒕? ?쇱슫?????ъ쑀 ?덇쾶 8)
+    // Stores selected augments during the whole match because SelectedAugmentId resets every round.
+    // Used by the result screen and backend result submission.
+    // Maximum number of selected augments stored for result display and backend submission.
     public const int MaxAugmentHistory = 8;
     [Networked, Capacity(MaxAugmentHistory)] public NetworkArray<int> AugmentHistoryIds { get; }
     [Networked, Capacity(MaxAugmentHistory)] public NetworkArray<int> AugmentHistoryRounds { get; }
@@ -221,6 +237,7 @@ public class PlayerNetwork : NetworkBehaviour
         }
     }
 
+    // Initializes all authority-owned player state when the server spawns the player.
     public void ServerInitialize(byte slotIndex)
     {
         if (!HasStateAuthority)
@@ -313,6 +330,7 @@ public class PlayerNetwork : NetworkBehaviour
         pendingRoundTeleportFrames = 0;
     }
 
+    // Registers the local player and sends profile data after network spawn.
     public override void Spawned()
     {
         if (kcc == null)
@@ -377,6 +395,7 @@ public class PlayerNetwork : NetworkBehaviour
         UpdateAudioFeedback();
     }
 
+    // Processes authoritative movement, input, firing, abilities, and accessory combat.
     public override void FixedUpdateNetwork()
     {
         ApplyPendingRoundTeleport();
@@ -517,6 +536,7 @@ public class PlayerNetwork : NetworkBehaviour
         PreviousButtons = input.Buttons;
     }
 
+    // Chooses the camera aim ray or a muzzle-based fallback.
     private void GetFireRay(Vector3 inputAimOrigin, Vector3 inputAimDirection, out Vector3 origin, out Vector3 direction)
     {
         if (inputAimDirection.sqrMagnitude > 0.0001f)
@@ -531,6 +551,7 @@ public class PlayerNetwork : NetworkBehaviour
         direction = GetAimDirection();
     }
 
+    // Pushes networked movement and action state into the active Animator.
     private void UpdateAnimator()
     {
         if (!useAnimator || animator == null)
@@ -647,6 +668,7 @@ public class PlayerNetwork : NetworkBehaviour
         lastAudioDashCount = DashAudioCount;
     }
 
+    // Starts dash movement and stores the dash direction for network ticks.
     private void StartDash(Vector3 dir)
     {
         if (dir.sqrMagnitude < 0.0001f)
@@ -687,6 +709,7 @@ public class PlayerNetwork : NetworkBehaviour
 
     [SerializeField] private Vector3 fallbackMuzzleLocalOffset = new Vector3(0.25f, 1.35f, 0.65f);
 
+    // Returns the active muzzle position, with safe fallbacks if no muzzle exists.
     private Vector3 GetFireOriginPosition()
     {
         if (playerVisuals != null)
@@ -707,6 +730,7 @@ public class PlayerNetwork : NetworkBehaviour
         return Quaternion.Euler(LookPitch, LookYaw, 0f) * Vector3.forward;
     }
 
+    // Fires one or more networked projectiles when the fire cooldown allows it.
     private void HoldFire(Vector3 inputAimOrigin, Vector3 inputAimDirection)
     {
         if (!HasStateAuthority)
@@ -823,6 +847,7 @@ public class PlayerNetwork : NetworkBehaviour
         }
     }
 
+    // Increments the hit confirm counter used by local combat feedback UI.
     public void AddHitConfirm()
     {
         if (!HasStateAuthority)
@@ -831,6 +856,7 @@ public class PlayerNetwork : NetworkBehaviour
         HitConfirmCount++;
     }
 
+    // Uses the currently selected active item if a use is available.
     private void UseAbility()
     {
         if (!HasStateAuthority)
@@ -895,6 +921,7 @@ public class PlayerNetwork : NetworkBehaviour
         IsDead = dead;
     }
 
+    // Resets movement, health, cooldowns, and item uses for a new round.
     public void ResetForRound(Vector3 spawnPosition, float yaw)
     {
         if (!HasStateAuthority)
@@ -940,6 +967,7 @@ public class PlayerNetwork : NetworkBehaviour
         OrbitMeleeDamageTimer = default;
     }
 
+    // Stores the augment ids offered to this player for the current phase.
     public void SetOfferedAugments(int a0, int a1, int a2, bool canSelect)
     {
         if (!HasStateAuthority) return;
@@ -964,6 +992,7 @@ public class PlayerNetwork : NetworkBehaviour
         };
     }
 
+    // Applies an augment definition to the player's runtime combat stats.
     public void ApplyAugment(AugmentDefinition def)
     {
         if (!HasStateAuthority || def == null)
@@ -1070,6 +1099,7 @@ public class PlayerNetwork : NetworkBehaviour
         Debug.Log($"[Augment] Slot {SlotIndex} applied {def.displayName}");
     }
 
+    // Calculates the direction for one projectile in a spread shot.
     private Vector3 GetSpreadProjectileDirection(Vector3 centerDirection, int index, int count, float spreadAngle)
     {
         if (centerDirection.sqrMagnitude < 0.0001f)
@@ -1106,6 +1136,7 @@ public class PlayerNetwork : NetworkBehaviour
         ThrowItem(ThrowableItemKind.SmokeBomb);
     }
 
+    // Spawns a grenade or smoke bomb active item projectile.
     private void ThrowItem(ThrowableItemKind kind)
     {
         if (!HasStateAuthority)
@@ -1156,6 +1187,7 @@ public class PlayerNetwork : NetworkBehaviour
             ActiveItemUsesRemaining--;
     }
 
+    // Spawns the throwing axe and marks it as away from the player.
     private void ThrowAxe()
     {
         if (!HasStateAuthority)
@@ -1198,11 +1230,12 @@ public class PlayerNetwork : NetworkBehaviour
 
         if (spawned != null)
         {
-            // Throwing Axe는 소모 횟수가 아니라 “현재 손에 있는지”를 나타냅니다.
+            // Throwing Axe uses this value as an ownership state, not as a consumable count.
             ActiveItemUsesRemaining = 0;
         }
     }
 
+    // Restores the axe use when the owner picks it back up.
     public void RestoreThrowingAxe()
     {
         if (!HasStateAuthority)
@@ -1215,6 +1248,7 @@ public class PlayerNetwork : NetworkBehaviour
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    // Applies validated profile and character data on the state authority.
     public void RPC_RequestApplyProfile(byte requestedCharacterId, string requestedPlayerName, string requestedCharacterName)
     {
         if (playerVisuals != null && !playerVisuals.IsValidCharacterId(requestedCharacterId))
@@ -1248,6 +1282,7 @@ public class PlayerNetwork : NetworkBehaviour
         HasAppliedProfile = true;
     }
 
+    // Returns the world position for an orbiting accessory visual or hitbox.
     public Vector3 GetOrbitAccessoryPosition(int index, int count, float radius, float height)
     {
         Vector3 dir = GetOrbitAccessoryDirection(index, count);
@@ -1276,6 +1311,7 @@ public class PlayerNetwork : NetworkBehaviour
         return time * Mathf.Max(1f, AccessoryRotateSpeed);
     }
 
+    // Checks whether an orbit shield is facing the incoming projectile.
     public bool TryBlockProjectile(Vector3 projectilePosition, Vector3 projectileDirection)
     {
         if (!HasStateAuthority)
@@ -1312,6 +1348,7 @@ public class PlayerNetwork : NetworkBehaviour
         return false;
     }
 
+    // Runs accessory damage checks during active combat.
     private void UpdateAccessoryCombat()
     {
         if (!HasStateAuthority)
@@ -1419,6 +1456,7 @@ public class PlayerNetwork : NetworkBehaviour
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    // Validates and applies the augment selected by this input authority.
     public void RPC_RequestSelectAugment(int slotIndex, RpcInfo info = default)
     {
         MatchManager match = MatchManager.Instance;
@@ -1447,6 +1485,7 @@ public class PlayerNetwork : NetworkBehaviour
         match.NotifyPlayerSelectedAugment(this);
     }
 
+    // Stores augment history for result UI and backend reporting.
     private void RecordSelectedAugment(int augmentId, int roundIndex)
     {
         if (!HasStateAuthority)
@@ -1531,6 +1570,7 @@ public class PlayerNetwork : NetworkBehaviour
         Debug.Log($"[Debug] Applied augment: {def.displayName}");
     }
 
+    // Applies replicated round teleport data for a few frames to keep clients synchronized.
     private void ApplyPendingRoundTeleport()
     {
         if (RoundTeleportSeq != lastAppliedRoundTeleportSeq)

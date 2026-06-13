@@ -1,12 +1,15 @@
 using UnityEngine;
 
+// Shows local combat feedback such as hit markers, damage flash, and SFX.
 public class CombatFeedbackUI : MonoBehaviour
 {
+    // Hit marker UI shown when the local player confirms damage.
     [Header("Hit Marker")]
     [SerializeField] private GameObject hitMarkerRoot;
     [SerializeField] private CanvasGroup hitMarkerGroup;
     [SerializeField] private float hitMarkerDuration = 0.12f;
 
+    // Damage flash UI shown when the local player takes damage.
     [Header("Damage Flash")]
     [SerializeField] private GameObject damageFlashRoot;
     [SerializeField] private CanvasGroup damageFlashGroup;
@@ -18,9 +21,11 @@ public class CombatFeedbackUI : MonoBehaviour
     [SerializeField] private AudioClip hitMarkerSound;
     [SerializeField] private AudioClip damagedSound;
 
+    // Current local player and health object being observed.
     private PlayerNetwork observedPlayer;
     private PlayerHealth observedHealth;
 
+    // Previous network counters used to detect new feedback events.
     private int lastHitConfirmCount;
     private int lastDamageFeedbackCount;
 
@@ -39,6 +44,7 @@ public class CombatFeedbackUI : MonoBehaviour
             damageFlashRoot.SetActive(false);
     }
 
+    // Tracks the local player and updates feedback timers every frame.
     private void Update()
     {
         PlayerNetwork localPlayer = GameManager.Instance != null
@@ -80,6 +86,7 @@ public class CombatFeedbackUI : MonoBehaviour
         UpdateDamageFlash(Time.deltaTime);
     }
 
+    // Starts the hit marker when the hit confirm counter increases.
     private void CheckHitMarkerEvent()
     {
         if (observedPlayer == null)
@@ -87,7 +94,7 @@ public class CombatFeedbackUI : MonoBehaviour
 
         int current = observedPlayer.HitConfirmCount;
 
-        // 라운드 리셋 등으로 카운터가 0으로 돌아간 경우
+        // Counter can reset to 0 when a new round starts.
         if (current < lastHitConfirmCount)
         {
             lastHitConfirmCount = current;
@@ -101,6 +108,7 @@ public class CombatFeedbackUI : MonoBehaviour
         lastHitConfirmCount = current;
     }
 
+    // Starts the damage flash when the damage feedback counter increases.
     private void CheckDamageFlashEvent()
     {
         if (observedHealth == null)
@@ -108,7 +116,7 @@ public class CombatFeedbackUI : MonoBehaviour
 
         int current = observedHealth.DamageFeedbackCount;
 
-        // 라운드 리셋 등으로 카운터가 0으로 돌아간 경우
+        // Counter can reset to 0 when a new round starts.
         if (current < lastDamageFeedbackCount)
         {
             lastDamageFeedbackCount = current;

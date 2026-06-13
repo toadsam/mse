@@ -2,17 +2,22 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
+// Stores all augment definitions and provides lookup/random draw helpers.
 public class AugmentDatabase : MonoBehaviour
 {
+    // Augment assets assigned from the Unity Inspector.
     [SerializeField] private List<AugmentDefinition> augments = new();
 
+    // Runtime cache for fast augment lookup by id.
     private Dictionary<int, AugmentDefinition> byId;
 
+    // Builds the id lookup table when the database is loaded.
     private void Awake()
     {
         byId = augments.ToDictionary(a => a.id, a => a);
     }
 
+    // Returns the augment definition that matches the given id.
     public AugmentDefinition GetById(int id)
     {
         if (byId == null || byId.Count == 0)
@@ -22,6 +27,7 @@ public class AugmentDatabase : MonoBehaviour
         return result;
     }
 
+    // Draws unique random augments from the full pool.
     public List<AugmentDefinition> DrawRandomUnique(int count)
     {
         List<AugmentDefinition> pool = new List<AugmentDefinition>(augments);
@@ -39,6 +45,7 @@ public class AugmentDatabase : MonoBehaviour
         return result;
     }
 
+    // Draws unique augments while avoiding ids that were already offered.
     public List<AugmentDefinition> DrawRandomUniqueExcluding(
     int count,
     ICollection<int> excludedIds
@@ -60,7 +67,7 @@ public class AugmentDatabase : MonoBehaviour
             pool.Add(augment);
         }
 
-        // 개발 중 카드 수가 부족할 때만 중복 허용 fallback
+        // Fallback for testing when the unique augment pool is too small.
         if (pool.Count < count)
         {
             Debug.LogWarning("[AugmentDatabase] Unique augment pool is too small. Allowing repeated offers for testing.");

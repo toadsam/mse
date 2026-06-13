@@ -1,5 +1,6 @@
 using UnityEngine;
 
+// Rarity label used to group augment cards.
 public enum AugmentRarity
 {
     Common,
@@ -7,6 +8,7 @@ public enum AugmentRarity
     Epic
 }
 
+// Gameplay category used to organize augment effects.
 public enum AugmentCategory
 {
     Projectile,
@@ -17,6 +19,7 @@ public enum AugmentCategory
     RiskReward,
     WeaponStyle
 }
+// Accessory visual/combat type added by an augment.
 public enum AugmentAccessoryType
 {
     None,
@@ -25,6 +28,7 @@ public enum AugmentAccessoryType
     DropMelee
 }
 
+// Active item type that can replace the default medkit.
 public enum ActiveItemType
 {
     MedKit,
@@ -34,8 +38,10 @@ public enum ActiveItemType
 }
 
 [CreateAssetMenu(fileName = "AugmentDefinition", menuName = "Game/Augment Definition")]
+// Data asset that describes one augment and its gameplay modifiers.
 public class AugmentDefinition : ScriptableObject
 {
+    // Basic card identity shown in the selection UI.
     [Header("Identity")]
     public int id;
     public string displayName;
@@ -47,6 +53,7 @@ public class AugmentDefinition : ScriptableObject
     public AugmentRarity rarity = AugmentRarity.Common;
     public AugmentCategory category = AugmentCategory.Projectile;
 
+    // Projectile stat modifiers applied when the augment is selected.
     [Header("Projectile Shape")]
     public int extraProjectiles = 0;
     public float spreadAngle = 0f;
@@ -55,6 +62,7 @@ public class AugmentDefinition : ScriptableObject
     public float damageMultiplier = 1f;
     public float fireIntervalMultiplier = 1f;
 
+    // Extra projectile rules such as bounce, pierce, and distance scaling.
     [Header("Projectile Behavior")]
     public int bounceCountBonus = 0;
     public int pierceCountBonus = 0;
@@ -62,11 +70,13 @@ public class AugmentDefinition : ScriptableObject
     public bool growDamageByDistance = false;
     public float maxGrowDamageMultiplier = 1f;
 
+    // Status effect values applied by projectiles.
     [Header("Status Effect")]
     public bool appliesPoison = false;
     public int poisonDamagePerTick = 0;
     public float poisonDuration = 0f;
 
+    // Area damage and lingering cloud values.
     [Header("Explosion / Area")]
     public bool explodesOnImpact = false;
     public float explosionRadius = 0f;
@@ -84,21 +94,20 @@ public class AugmentDefinition : ScriptableObject
     public bool stackable = false;
     public int maxStacks = 1;
 
+    // Orbiting accessory values used by shield and melee augments.
     [Header("Accessory / Orbit")]
     public AugmentAccessoryType accessoryType = AugmentAccessoryType.None;
     public int accessoryCountBonus = 0;
     public float accessoryRadius = 1.4f;
     public float accessoryRotateSpeed = 180f;
 
-    [Tooltip("OrbitMelee 또는 DropMelee 피해량")]
     public int accessoryDamage = 0;
 
-    [Tooltip("OrbitMelee가 같은 대상에게 다시 피해를 줄 수 있는 간격")]
     public float accessoryHitInterval = 0.6f;
 
-    [Tooltip("Shield가 탄을 막는 각도입니다. 70이면 방패 중심 기준 좌우 35도 정도입니다.")]
     public float shieldBlockAngle = 70f;
 
+    // Active item replacement settings for item-type augments.
     [Header("Active Item")]
     public bool replacesActiveItem = false;
     public ActiveItemType activeItemType = ActiveItemType.MedKit;

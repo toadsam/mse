@@ -1,3 +1,4 @@
+﻿// Networked match phases shared by match flow, gameplay, and UI.
 public enum MatchPhase : byte
 {
     Lobby = 0,

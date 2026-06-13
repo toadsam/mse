@@ -1,23 +1,27 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+// UI controller for creating, refreshing, and joining Photon lobby rooms.
 public class LobbyMenuUI : MonoBehaviour
 {
     [Header("References")]
+    // Network bootstrap used to request lobby and room operations.
     [SerializeField] private FusionBootstrap bootstrap;
 
     [Header("Root")]
     [SerializeField] private GameObject root;
 
     [Header("Create Room")]
+    // Input and button used to create a new room.
     [SerializeField] private TMP_InputField roomNameInput;
     [SerializeField] private Button createRoomButton;
 
     [Header("Room List")]
     [SerializeField] private Button refreshButton;
+    // Container and item prefab used to render the room list.
     [SerializeField] private Transform roomListContent;
     [SerializeField] private LobbyRoomItemUI roomItemPrefab;
 
@@ -45,6 +49,7 @@ public class LobbyMenuUI : MonoBehaviour
         }
     }
 
+    // Subscribes to lobby events and joins the lobby when the UI opens.
     private void OnEnable()
     {
         if (bootstrap == null)
@@ -85,6 +90,7 @@ public class LobbyMenuUI : MonoBehaviour
         RefreshRoomList(bootstrap.CachedSessions);
     }
 
+    // Rebuilds visible room buttons from the latest session list.
     private void RefreshRoomList(IReadOnlyList<SessionInfo> sessions)
     {
         if (roomListContent == null || roomItemPrefab == null)
@@ -132,10 +138,10 @@ public class LobbyMenuUI : MonoBehaviour
             gameObject.SetActive(false);
     }
 
-    // 매치 종료 후 로비로 복귀할 때 호출한다.
-    // HideLobby()가 끈 LobbyRoot(root)를 다시 켜고, 새 NetworkRunner로 로비에 재접속한다.
-    // LobbyMenuUI는 항상 active인 부모(LobbyPanel)에 붙어 있어 root만 다시 켜도
-    // OnEnable이 재발화되지 않으므로, 여기서 JoinLobby를 직접 호출해야 룸 리스트가 갱신된다.
+    // Called when returning to the lobby after a match.
+    // It re-enables the lobby root that HideLobby() disabled.
+    // Rejoining the lobby is handled by FusionBootstrap after cleanup.
+    // Reactivates the lobby root after returning from a match.
     public void ShowLobby()
     {
         if (root != null && !root.activeSelf)
@@ -143,10 +149,10 @@ public class LobbyMenuUI : MonoBehaviour
         else if (root == null && !gameObject.activeSelf)
             gameObject.SetActive(true);
 
-        // 여기서 JoinLobby()를 직접 호출하지 않습니다.
-        // FusionBootstrap.ScheduleRejoinLobbyAfterCleanup()가 담당합니다.
+        // Do not call JoinLobby() here; FusionBootstrap schedules it after cleanup.
     }
 
+    // Clears stale room items while the lobby is reconnecting.
     public void ClearRoomList()
     {
         if (roomListContent == null)

@@ -1,20 +1,25 @@
-using UnityEngine;
+﻿using UnityEngine;
 
+// Switches character visuals, active Animator, and weapon muzzle by character id.
 public class PlayerVisuals : MonoBehaviour
 {
     [Header("Characters")]
+    // Character roots that can be enabled for the selected character id.
     [SerializeField] private GameObject[] characters;
 
     [Header("Animators")]
+    // Animator and muzzle arrays aligned with the character array.
     [SerializeField] private Animator[] animators;
 
     [Header("Weapon Muzzles")]
     [SerializeField] private Transform[] muzzles;
 
+    // Last active character id used to avoid redundant refresh work.
     private byte lastApplied = 255;
 
     public int CharacterCount => characters != null ? characters.Length : 0;
 
+    // Checks whether a character id has a valid visual prefab.
     public bool IsValidCharacterId(byte characterId)
     {
         return characters != null &&
@@ -22,6 +27,7 @@ public class PlayerVisuals : MonoBehaviour
                characters[characterId] != null;
     }
 
+    // Activates only the selected character visual.
     public void Refresh(byte characterId)
     {
         if (lastApplied == characterId)
@@ -41,6 +47,7 @@ public class PlayerVisuals : MonoBehaviour
         }
     }
 
+    // Returns the Animator that belongs to the selected character.
     public Animator GetActiveAnimator(byte characterId)
     {
         if (animators == null)
@@ -52,6 +59,7 @@ public class PlayerVisuals : MonoBehaviour
         return animators[characterId];
     }
 
+    // Returns the muzzle transform that belongs to the selected character.
     public Transform GetActiveMuzzle(byte characterId)
     {
         if (muzzles == null)

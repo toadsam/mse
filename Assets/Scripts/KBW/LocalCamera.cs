@@ -1,7 +1,9 @@
-using UnityEngine;
+癤퓎sing UnityEngine;
 
+// Local camera controller for first-person/third-person view and recoil feedback.
 public class LocalCamera : MonoBehaviour
 {
+    // Camera modes toggled by the local player.
     public enum CameraMode
     {
         FirstPerson,
@@ -16,6 +18,7 @@ public class LocalCamera : MonoBehaviour
     [SerializeField] private CameraMode mode = CameraMode.ThirdPerson;
 
     [Header("Third Person")]
+    // Third-person distance and offset behind the player.
     [SerializeField] private float thirdPersonDistance = 3.5f;
     [SerializeField] private Vector3 thirdPersonOffset = new Vector3(0.5f, 0.2f, 0f);
     [SerializeField] private LayerMask cameraBlockMask;
@@ -24,12 +27,12 @@ public class LocalCamera : MonoBehaviour
     [Header("Fire Recoil")]
     [SerializeField] private bool useFireRecoil = true;
 
-    // 음수면 보통 위로 튀는 느낌입니다. 반대로 움직이면 +로 바꾸세요.
+    // Negative pitch usually feels like the camera kicks upward.
     [SerializeField] private float fireRecoilPitchKick = -0.45f;
     [SerializeField] private float fireRecoilYawRandom = 0.08f;
     [SerializeField] private float fireRecoilRollRandom = 0.12f;
 
-    // 카메라 위치 흔들림입니다. 너무 크면 조준이 불편해지므로 작게 둡니다.
+    // Small position recoil keeps aiming readable.
     [SerializeField] private Vector3 fireRecoilPositionKick = new Vector3(0f, 0.005f, -0.015f);
 
     [SerializeField] private float recoilSnappiness = 28f;
@@ -46,8 +49,10 @@ public class LocalCamera : MonoBehaviour
     private Vector3 recoilPositionTarget;
     private Vector3 recoilPositionCurrent;
 
+    // True after the camera is attached to the local player.
     public bool IsBound => target != null && targetNetwork != null;
 
+    // Attaches the camera to the local player view and network state.
     public void Bind(PlayerView view, PlayerNetwork network)
     {
         target = view;
@@ -64,6 +69,7 @@ public class LocalCamera : MonoBehaviour
         ApplyVisualMode();
     }
 
+    // Detaches the camera and restores player visuals.
     public void Unbind()
     {
         if (target != null)
@@ -78,6 +84,7 @@ public class LocalCamera : MonoBehaviour
         GameManager.Instance?.RegisterLocalCamera(this);
     }
 
+    // Handles camera mode toggle and pause cursor toggle.
     private void Update()
     {
         if (!IsBound)
@@ -101,6 +108,7 @@ public class LocalCamera : MonoBehaviour
         }
     }
 
+    // Positions and rotates the camera after player movement is updated.
     private void LateUpdate()
     {
         if (!IsBound)
@@ -166,7 +174,7 @@ public class LocalCamera : MonoBehaviour
 
         int currentCount = targetNetwork.FireAnimCount;
 
-        // 라운드 리셋 등으로 카운트가 다시 0이 된 경우
+        // Fire counter can reset to 0 when a round restarts.
         if (currentCount < lastObservedFireAnimCount)
         {
             lastObservedFireAnimCount = currentCount;
